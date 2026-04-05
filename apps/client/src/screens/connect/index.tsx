@@ -229,9 +229,15 @@ const Connect = memo(() => {
       </Card>
 
       <div className="flex justify-center items-center gap-2 text-xs text-muted-foreground select-none">
-        <span>v{VITE_APP_VERSION}</span>
         <a
-          href="https://github.com/sharkord/sharkord"
+          href="https://github.com/danbosscher/sharkord/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          v{VITE_APP_VERSION}
+        </a>
+        <a
+          href="https://github.com/danbosscher/sharkord"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -240,11 +246,11 @@ const Connect = memo(() => {
 
         <a
           className="text-xs"
-          href="https://sharkord.com"
+          href="https://github.com/danbosscher/sharkord"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Sharkord
+          Fork
         </a>
       </div>
     </div>

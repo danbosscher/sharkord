@@ -1,6 +1,10 @@
 import { UserAvatar } from '@/components/user-avatar';
 import { useAdminRoles, useAdminUsers } from '@/features/server/admin/hooks';
 import {
+  getDuplicateRenderedNames,
+  getUserDisambiguator
+} from '@/helpers/get-user-disambiguation';
+import {
   Button,
   Input,
   Popover,
@@ -49,6 +53,10 @@ const SearchPopover = memo(
             !ignoreUserIds?.includes(user.id)
         ),
       [users, searchQuery, ignoreUserIds]
+    );
+    const duplicateRenderedNames = useMemo(
+      () => getDuplicateRenderedNames(filteredUsers),
+      [filteredUsers]
     );
 
     return (
@@ -125,7 +133,17 @@ const SearchPopover = memo(
                       className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
                     >
                       <UserAvatar userId={user.id} />
-                      <span>{user.name}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">{user.name}</div>
+                        {getUserDisambiguator(user, duplicateRenderedNames) && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {getUserDisambiguator(
+                              user,
+                              duplicateRenderedNames
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>

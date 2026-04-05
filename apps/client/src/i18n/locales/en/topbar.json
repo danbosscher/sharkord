@@ -1,10 +1,13 @@
 {
   "closeVoiceChat": "Close Voice Chat",
   "openVoiceChat": "Open Voice Chat",
+  "closeChannelsSidebar": "Close Channels Sidebar",
+  "openChannelsSidebar": "Open Channels Sidebar",
   "closeMembersSidebar": "Close Members Sidebar",
   "openMembersSidebar": "Open Members Sidebar",
   "searchContent": "Search for content...",
   "voiceOptions": "Voice Options",
+  "hideIncomingVideoStreams": "Hide incoming video streams",
   "hideNonVideoParticipants": "Hide non-video participants",
   "displayUserBanners": "Display user banners",
   "hideOwnScreenShare": "Hide own screen share",

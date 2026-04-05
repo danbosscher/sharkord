@@ -6,14 +6,19 @@ import { MessageCircleMore, X } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const DmButton = memo(() => {
+type TDmButtonProps = {
+  onNavigate?: () => void;
+};
+
+const DmButton = memo(({ onNavigate }: TDmButtonProps) => {
   const { t } = useTranslation('sidebar');
   const directMessagesUnreadCount = useDirectMessagesUnreadCount();
   const dmsOpen = useDmsOpen();
 
   const onToggleDmMode = useCallback(() => {
     setDmsOpen(!dmsOpen);
-  }, [dmsOpen]);
+    onNavigate?.();
+  }, [dmsOpen, onNavigate]);
 
   return (
     <div className="border-b border-border px-2 py-2">

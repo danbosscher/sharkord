@@ -4,6 +4,7 @@ import { banRoute } from './ban';
 import { changeAvatarRoute } from './change-avatar';
 import { changeBannerRoute } from './change-banner';
 import { deleteUserRoute } from './delete-user';
+import { completeProfileSetupRoute } from './complete-profile-setup';
 import {
   onUserCreateRoute,
   onUserDeleteRoute,
@@ -15,6 +16,7 @@ import { getUserInfoRoute } from './get-user-info';
 import { getUsersRoute } from './get-users';
 import { kickRoute } from './kick';
 import { removeRoleRoute } from './remove-role';
+import { renameUserRoute } from './rename';
 import { unbanRoute } from './unban';
 import { updatePasswordRoute } from './update-password';
 import { updateUserRoute } from './update-user';
@@ -31,6 +33,8 @@ export const usersRouter = t.router({
   kick: kickRoute,
   ban: banRoute,
   unban: unbanRoute,
+  rename: renameUserRoute,
+  completeProfileSetup: completeProfileSetupRoute,
   delete: deleteUserRoute,
   onJoin: onUserJoinRoute,
   onLeave: onUserLeaveRoute,

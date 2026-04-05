@@ -1,4 +1,7 @@
+import { getDuplicateRenderedNames } from '@/helpers/get-user-disambiguation';
+import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import type { IRootState } from '@/features/store';
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import {
   filteredUsersSelector,
@@ -37,3 +40,42 @@ export const useUserStatus = (userId: number) =>
 export const useUsernames = () => useSelector(usernamesSelector);
 
 export const useFilteredUsers = () => useSelector(filteredUsersSelector);
+
+export const useDuplicateRenderedNames = () => {
+  const users = useUsers();
+
+  return useMemo(() => getDuplicateRenderedNames(users), [users]);
+};
+
+export const useDisplayNameCollision = (
+  name: string,
+  options?: {
+    excludeUserId?: number;
+  }
+) => {
+  const users = useUsers();
+
+  return useMemo(() => {
+    const normalizedName = getRenderedUsername({ name }).trim().toLowerCase();
+
+    if (!normalizedName) {
+      return {
+        hasCollision: false,
+        matchingUserIds: [] as number[]
+      };
+    }
+
+    const matchingUserIds = users
+      .filter((user) => user.id !== options?.excludeUserId)
+      .filter(
+        (user) =>
+          getRenderedUsername(user).trim().toLowerCase() === normalizedName
+      )
+      .map((user) => user.id);
+
+    return {
+      hasCollision: matchingUserIds.length > 0,
+      matchingUserIds
+    };
+  }, [name, options?.excludeUserId, users]);
+};

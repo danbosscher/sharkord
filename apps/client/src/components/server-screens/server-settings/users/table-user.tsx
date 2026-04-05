@@ -1,12 +1,13 @@
 import { Dialog } from '@/components/dialogs/dialogs';
 import { UserAvatar } from '@/components/user-avatar';
 import { setModViewOpen } from '@/features/app/actions';
-import { openDialog } from '@/features/dialogs/actions';
+import { openDialog, requestTextInput } from '@/features/dialogs/actions';
 import { useUserRoles } from '@/features/server/hooks';
 import { useOwnUserId, useUserStatus } from '@/features/server/users/hooks';
 import { useDateLocale } from '@/hooks/use-date-locale';
 import { cn } from '@/lib/utils';
-import { UserStatus, type TJoinedUser } from '@sharkord/shared';
+import { getTrpcError, UserStatus, type TJoinedUser } from '@sharkord/shared';
+import { getTRPCClient } from '@/lib/trpc';
 import {
   Button,
   DropdownMenu,
@@ -16,9 +17,10 @@ import {
   DropdownMenuTrigger
 } from '@sharkord/ui';
 import { format, formatDistanceToNow } from 'date-fns';
-import { MoreVertical, Trash2, UserCog } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, UserCog } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 type TTableUserProps = {
   user: TJoinedUser;
@@ -35,6 +37,35 @@ const TableUser = memo(({ user, refetch }: TTableUserProps) => {
   const onModerateClick = useCallback(() => {
     setModViewOpen(true, user.id);
   }, [user.id]);
+
+  const onRenameClick = useCallback(async () => {
+    const name = await requestTextInput({
+      title: `Rename ${user.name}`,
+      message:
+        'Enter a new display name for this user. Duplicate names are allowed; Sharkord will add #id disambiguators in lists and mentions when names collide.',
+      confirmLabel: 'Rename',
+      defaultValue: user.name
+    });
+
+    if (name === null || name === undefined) return;
+
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    const trpc = getTRPCClient();
+
+    try {
+      await trpc.users.rename.mutate({
+        userId: user.id,
+        name: trimmedName
+      });
+
+      toast.success('User renamed successfully');
+      refetch?.();
+    } catch (error) {
+      toast.error(getTrpcError(error, 'Failed to rename user'));
+    }
+  }, [refetch, user.id, user.name]);
 
   const onDeleteClick = useCallback(() => {
     openDialog(Dialog.DELETE_USER, { user, refetch });
@@ -123,6 +154,10 @@ const TableUser = memo(({ user, refetch }: TTableUserProps) => {
               <DropdownMenuItem onClick={onModerateClick}>
                 <UserCog className="h-4 w-4" />
                 {t('moderateUserAction')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onRenameClick}>
+                <Pencil className="h-4 w-4" />
+                {t('renameUserAction', { defaultValue: 'Rename user' })}
               </DropdownMenuItem>
               {ownUserId !== user.id && (
                 <>

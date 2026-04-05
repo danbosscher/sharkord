@@ -1,7 +1,8 @@
 import {
   ActivityLogType,
   Permission,
-  StorageOverflowAction
+  StorageOverflowAction,
+  NoiseSuppressionMode
 } from '@sharkord/shared';
 import { z } from 'zod';
 import { updateSettings } from '../../db/mutations/server';
@@ -32,7 +33,11 @@ const updateSettingsRoute = protectedProcedure
       enablePlugins: z.boolean().optional(),
       enableSearch: z.boolean().optional(),
       storageSignedUrlsEnabled: z.boolean().optional(),
-      storageSignedUrlsTtlSeconds: z.number().int().min(0).optional()
+      storageSignedUrlsTtlSeconds: z.number().int().min(0).optional(),
+      defaultEchoCancellation: z.boolean().optional(),
+      defaultNoiseSuppression: z
+        .nativeEnum(NoiseSuppressionMode)
+        .optional()
     })
   )
   .mutation(async ({ input, ctx }) => {
@@ -60,7 +65,9 @@ const updateSettingsRoute = protectedProcedure
       enablePlugins: input.enablePlugins,
       enableSearch: input.enableSearch,
       storageSignedUrlsEnabled: input.storageSignedUrlsEnabled,
-      storageSignedUrlsTtlSeconds: input.storageSignedUrlsTtlSeconds
+      storageSignedUrlsTtlSeconds: input.storageSignedUrlsTtlSeconds,
+      defaultEchoCancellation: input.defaultEchoCancellation,
+      defaultNoiseSuppression: input.defaultNoiseSuppression
     });
 
     if (oldEnablePlugins !== input.enablePlugins) {

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'fs';
 import path from 'path';
-import { testsBaseUrl } from '../../__tests__/setup';
+import { testsBaseUrl } from '../../__tests__/test-context';
 import { INTERFACE_PATH } from '../../helpers/paths';
 
 describe('/interface', () => {

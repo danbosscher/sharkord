@@ -4,6 +4,7 @@ import { logVoice } from '@/helpers/browser-logger';
 import {
   LocalStorageKey,
   setLocalStorageItem,
+  setLocalStorageItemAsJSON,
   setLocalStorageItemBool
 } from '@/helpers/storage';
 import { getTRPCClient } from '@/lib/trpc';
@@ -141,22 +142,26 @@ export const updateOwnVoiceState = (
 };
 
 export const joinVoice = async (
-  channelId: number
+  channelId: number,
+  options?: {
+    force?: boolean;
+    suppressErrorToast?: boolean;
+  }
 ): Promise<RtpCapabilities | undefined> => {
   const state = store.getState();
   const currentChannelId = currentVoiceChannelIdSelector(state);
+  const force = options?.force ?? false;
+  const suppressErrorToast = options?.suppressErrorToast ?? false;
 
-  if (channelId === currentChannelId) {
+  if (channelId === currentChannelId && !force) {
     // already in the desired channel
     return undefined;
   }
 
-  if (currentChannelId) {
+  if (currentChannelId && channelId !== currentChannelId) {
     // is already in a voice channel, leave it first
     await leaveVoice({ reason: 'switch_channel' });
   }
-
-  setCurrentVoiceChannelId(channelId);
 
   const { micMuted, soundMuted } = ownVoiceStateSelector(state);
   const client = getTRPCClient();
@@ -167,9 +172,20 @@ export const joinVoice = async (
       state: { micMuted, soundMuted }
     });
 
+    setCurrentVoiceChannelId(channelId);
+
     return routerRtpCapabilities;
   } catch (error) {
-    toast.error(getTrpcError(error, 'Failed to join voice channel'));
+    if (!suppressErrorToast) {
+      toast.error(
+        getTrpcError(
+          error,
+          force
+            ? 'Failed to reconnect voice channel'
+            : 'Failed to join voice channel'
+        )
+      );
+    }
   }
 
   return undefined;
@@ -228,6 +244,73 @@ export const setHideNonVideoParticipants = (value: boolean): void => {
     setLocalStorageItem(
       LocalStorageKey.HIDE_NON_VIDEO_PARTICIPANTS,
       String(value)
+    );
+  } catch (error) {
+    console.error('Failed to save voice options:', error);
+  }
+};
+
+export const setHideIncomingVideoStreams = (value: boolean): void => {
+  store.dispatch(serverSliceActions.setHideIncomingVideoStreams(value));
+
+  try {
+    setLocalStorageItemBool(LocalStorageKey.HIDE_INCOMING_VIDEO_STREAMS, value);
+  } catch (error) {
+    console.error('Failed to save voice options:', error);
+  }
+};
+
+const toggleNumberInList = (items: number[], value: number): number[] => {
+  return items.includes(value)
+    ? items.filter((item) => item !== value)
+    : [...items, value];
+};
+
+export const toggleEnabledIncomingVideoUserId = (userId: number): void => {
+  const current = store.getState().server.enabledIncomingVideoUserIds;
+  const next = toggleNumberInList(current, userId);
+
+  store.dispatch(serverSliceActions.setEnabledIncomingVideoUserIds(next));
+
+  try {
+    setLocalStorageItemAsJSON(LocalStorageKey.ENABLED_INCOMING_VIDEO_USER_IDS, next);
+  } catch (error) {
+    console.error('Failed to save voice options:', error);
+  }
+};
+
+export const toggleEnabledIncomingScreenShareUserId = (
+  userId: number
+): void => {
+  const current = store.getState().server.enabledIncomingScreenShareUserIds;
+  const next = toggleNumberInList(current, userId);
+
+  store.dispatch(serverSliceActions.setEnabledIncomingScreenShareUserIds(next));
+
+  try {
+    setLocalStorageItemAsJSON(
+      LocalStorageKey.ENABLED_INCOMING_SCREEN_SHARE_USER_IDS,
+      next
+    );
+  } catch (error) {
+    console.error('Failed to save voice options:', error);
+  }
+};
+
+export const toggleEnabledIncomingExternalVideoStreamId = (
+  streamId: number
+): void => {
+  const current = store.getState().server.enabledIncomingExternalVideoStreamIds;
+  const next = toggleNumberInList(current, streamId);
+
+  store.dispatch(
+    serverSliceActions.setEnabledIncomingExternalVideoStreamIds(next)
+  );
+
+  try {
+    setLocalStorageItemAsJSON(
+      LocalStorageKey.ENABLED_INCOMING_EXTERNAL_VIDEO_STREAM_IDS,
+      next
     );
   } catch (error) {
     console.error('Failed to save voice options:', error);

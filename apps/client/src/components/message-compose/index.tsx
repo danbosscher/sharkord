@@ -10,11 +10,14 @@ import {
   usePublicServerSettings
 } from '@/features/server/hooks';
 import { useFlatPluginCommands } from '@/features/server/plugins/hooks';
+import { useOwnUserId, useUserById } from '@/features/server/users/hooks';
 import { useUploadFiles } from '@/hooks/use-upload-files';
+import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
 import type { TJoinedPublicUser, TTempFile } from '@sharkord/shared';
 import {
+  ChannelType,
   ChannelPermission,
   Permission,
   PluginSlot,
@@ -76,12 +79,46 @@ const MessageCompose = memo(
     const can = useCan();
     const channelCan = useChannelCan(channelId);
     const channel = useChannelById(channelId);
+    const ownUserId = useOwnUserId();
     const publicSettings = usePublicServerSettings();
     const allPluginCommands = useFlatPluginCommands();
     const replyAuthorName = useMessageAuthorName({
       userId: replyTarget?.userId ?? 0,
       pluginId: replyTarget?.pluginId ?? ''
     });
+    const dmRecipientId = useMemo(() => {
+      if (!channel?.isDm || !channel.name.startsWith('DM - ')) {
+        return null;
+      }
+
+      const match = channel.name.match(/^DM - (\d+):(\d+)$/);
+      if (!match) return null;
+
+      const participants = [Number(match[1]), Number(match[2])];
+
+      return participants.find((id) => id !== ownUserId) ?? null;
+    }, [channel?.isDm, channel?.name, ownUserId]);
+    const dmRecipient = useUserById(dmRecipientId);
+
+    const placeholder = useMemo(() => {
+      if (!channel) {
+        return 'Message';
+      }
+
+      if (channel.isDm) {
+        const recipientName = dmRecipient
+          ? getRenderedUsername(dmRecipient)
+          : 'Direct Message';
+
+        return `Message @${recipientName}`;
+      }
+
+      if (channel.type === ChannelType.VOICE) {
+        return `Message ${channel.name}`;
+      }
+
+      return `Message #${channel.name}`;
+    }, [channel, dmRecipient]);
 
     const canSendMessages = useMemo(() => {
       return (
@@ -113,6 +150,7 @@ const MessageCompose = memo(
       clearFiles,
       uploading,
       uploadingSize,
+      uploadProgress,
       openFileDialog,
       fileInputProps
     } = useUploadFiles(channelId, containerRef, !canSendMessages);
@@ -160,6 +198,15 @@ const MessageCompose = memo(
       [removeFile]
     );
 
+    const uploadPercent = useMemo(() => {
+      if (!uploadProgress?.totalBytes) return 0;
+
+      return Math.min(
+        100,
+        Math.round((uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100)
+      );
+    }, [uploadProgress]);
+
     useEffect(() => {
       // focus the input when user clicks on reply
       if (replyTarget) {
@@ -173,11 +220,31 @@ const MessageCompose = memo(
         className="flex shrink-0 flex-col gap-2 p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
       >
         {uploading && (
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-muted-foreground mb-1">
-              Uploading files ({filesize(uploadingSize)})
+          <div className="rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground">
+                  Uploading files{' '}
+                  {uploadProgress?.fileCount
+                    ? `(${uploadProgress.currentFileIndex}/${uploadProgress.fileCount})`
+                    : ''}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {uploadProgress?.currentFileName || 'Preparing upload'}
+                  {' · '}
+                  {uploadPercent > 0 || uploadProgress?.totalBytes
+                    ? `${uploadPercent}% (${filesize(uploadProgress?.uploadedBytes ?? uploadingSize)} / ${filesize(uploadProgress?.totalBytes ?? uploadingSize)})`
+                    : filesize(uploadingSize)}
+                </div>
+              </div>
+              <Spinner size="xxs" />
             </div>
-            <Spinner size="xxs" />
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200"
+                style={{ width: `${uploadPercent}%` }}
+              />
+            </div>
           </div>
         )}
         {files.length > 0 && (
@@ -214,10 +281,11 @@ const MessageCompose = memo(
                 </Button>
               </div>
             )}
-            <div className="flex w-full gap-1 items-center">
+            <div className="flex w-full gap-1 items-end">
               <TiptapInput
                 ref={inputRef}
                 value={message}
+                placeholder={placeholder}
                 onChange={onMessageChange}
                 onSubmit={handleSend}
                 onTyping={onTyping}

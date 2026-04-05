@@ -78,6 +78,7 @@ const registerUser = async (
       name: `SharkordUser${randomNum}`,
       identity,
       createdAt: Date.now(),
+      profileSetupCompleted: false,
       password: hashedPassword
     })
     .returning()

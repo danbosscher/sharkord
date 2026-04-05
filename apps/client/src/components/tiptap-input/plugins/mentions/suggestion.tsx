@@ -1,5 +1,9 @@
 import { UserAvatar } from '@/components/user-avatar';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
+import {
+  getDuplicateRenderedNames,
+  getUserDisambiguator
+} from '@/helpers/get-user-disambiguation';
 import { computePosition } from '@floating-ui/dom';
 import type { TJoinedPublicUser } from '@sharkord/shared';
 import type { Editor } from '@tiptap/core';
@@ -9,6 +13,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useState
 } from 'react';
 
@@ -26,6 +31,10 @@ export type TUserListRef = {
 const UserList = forwardRef<TUserListRef, TUserListProps>(
   ({ items, onSelect }, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const duplicateRenderedNames = useMemo(
+      () => getDuplicateRenderedNames(items),
+      [items]
+    );
 
     useEffect(() => setSelectedIndex(0), [items]);
 
@@ -88,9 +97,16 @@ const UserList = forwardRef<TUserListRef, TUserListProps>(
             onClick={() => onSelect(item)}
           >
             <UserAvatar userId={item.id} className="h-6 w-6 shrink-0" />
-            <span className="font-medium truncate">
-              {getRenderedUsername(item)}
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">
+                {getRenderedUsername(item)}
+              </div>
+              {getUserDisambiguator(item, duplicateRenderedNames) && (
+                <div className="text-xs text-muted-foreground truncate">
+                  {getUserDisambiguator(item, duplicateRenderedNames)}
+                </div>
+              )}
+            </div>
           </button>
         ))}
       </div>

@@ -9,7 +9,8 @@ import {
 } from '@/features/server/voice/hooks';
 import { getFileUrl } from '@/helpers/get-file-url';
 import { cn } from '@/lib/utils';
-import { HeadphoneOff, MicOff, Monitor, Video } from 'lucide-react';
+import { IconButton } from '@sharkord/ui';
+import { Eye, EyeOff, HeadphoneOff, MicOff, Monitor, Video } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { CardControls } from './card-controls';
 import { CardGradient } from './card-gradient';
@@ -25,6 +26,9 @@ type TVoiceUserCardProps = {
   voiceUser: TVoiceUser;
   className?: string;
   isPinned?: boolean;
+  hideVideo?: boolean;
+  canToggleVideo?: boolean;
+  onToggleVideo?: () => void;
 };
 
 const VoiceUserCard = memo(
@@ -35,6 +39,9 @@ const VoiceUserCard = memo(
     className,
     isPinned = false,
     showPinControls = true,
+    hideVideo = false,
+    canToggleVideo = false,
+    onToggleVideo,
     voiceUser
   }: TVoiceUserCardProps) => {
     const { videoRef, hasVideoStream } = useVoiceRefs(userId);
@@ -76,13 +83,22 @@ const VoiceUserCard = memo(
         )}
 
         <CardControls>
+          {canToggleVideo && (
+            <IconButton
+              variant={hideVideo ? 'default' : 'ghost'}
+              icon={hideVideo ? Eye : EyeOff}
+              onClick={onToggleVideo}
+              title={hideVideo ? 'Show Video' : 'Hide Video'}
+              size="sm"
+            />
+          )}
           {!isOwnUser && <VolumeButton volumeKey={volumeKey} />}
           {showPinControls && (
             <PinButton isPinned={isPinned} handlePinToggle={handlePinToggle} />
           )}
         </CardControls>
 
-        {hasVideoStream && (
+        {hasVideoStream && !hideVideo && (
           <video
             ref={videoRef}
             autoPlay
@@ -94,7 +110,7 @@ const VoiceUserCard = memo(
             )}
           />
         )}
-        {!hasVideoStream && (
+        {(!hasVideoStream || hideVideo) && (
           <UserAvatar
             userId={userId}
             className="w-12 h-12 md:w-16 md:h-16 lg:w-24 lg:h-24"

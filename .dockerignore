@@ -1,0 +1,8 @@
+.git
+.github
+**/node_modules
+**/.DS_Store
+data
+apps/server/build/temp
+packages/e2e/playwright-report
+packages/e2e/test-results

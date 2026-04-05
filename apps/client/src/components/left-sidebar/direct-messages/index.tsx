@@ -5,10 +5,12 @@ import { useSelectedDmChannelId } from '@/features/app/hooks';
 import { useChannels } from '@/features/server/channels/hooks';
 import { useUnreadMessagesCount } from '@/features/server/hooks';
 import {
+  useDuplicateRenderedNames,
   useOwnUserId,
   useUserById,
   useUsers
 } from '@/features/server/users/hooks';
+import { getUserDisambiguator } from '@/helpers/get-user-disambiguation';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import {
@@ -30,11 +32,14 @@ type TDirectMessageItemProps = {
 const DirectMessageItem = memo(
   ({ dm, selected, onSelect }: TDirectMessageItemProps) => {
     const user = useUserById(dm.userId);
+    const duplicateRenderedNames = useDuplicateRenderedNames();
     const unreadCount = useUnreadMessagesCount(dm.channelId);
 
     if (!user) {
       return null;
     }
+
+    const disambiguator = getUserDisambiguator(user, duplicateRenderedNames);
 
     return (
       <button
@@ -46,14 +51,25 @@ const DirectMessageItem = memo(
         onClick={onSelect}
       >
         <UserAvatar userId={user.id} className="h-6 w-6" showUserPopover />
-        <span className="truncate flex-1 text-left">{user.name}</span>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="truncate">{user.name}</div>
+          {disambiguator && (
+            <div className="truncate text-[11px] text-muted-foreground">
+              {disambiguator}
+            </div>
+          )}
+        </div>
         <UnreadCount count={unreadCount} />
       </button>
     );
   }
 );
 
-const DirectMessages = memo(() => {
+type TDirectMessagesProps = {
+  onNavigate?: () => void;
+};
+
+const DirectMessages = memo(({ onNavigate }: TDirectMessagesProps) => {
   const { t } = useTranslation('sidebar');
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<
@@ -118,11 +134,12 @@ const DirectMessages = memo(() => {
 
         setSelectedDmChannelId(result.channelId);
         await fetchConversations();
+        onNavigate?.();
       } catch {
         toast.error(t('couldNotOpenDM'));
       }
     },
-    [fetchConversations, t]
+    [fetchConversations, onNavigate, t]
   );
 
   return (
@@ -150,7 +167,10 @@ const DirectMessages = memo(() => {
               key={dm.channelId}
               dm={dm}
               selected={selectedDmChannelId === dm.channelId}
-              onSelect={() => setSelectedDmChannelId(dm.channelId)}
+              onSelect={() => {
+                setSelectedDmChannelId(dm.channelId);
+                onNavigate?.();
+              }}
             />
           ))}
           {conversations.length === 0 && (

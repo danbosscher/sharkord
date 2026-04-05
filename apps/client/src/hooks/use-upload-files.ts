@@ -1,6 +1,9 @@
 import { useChannelById } from '@/features/server/channels/hooks';
 import { useCan, usePublicServerSettings } from '@/features/server/hooks';
-import { uploadFiles } from '@/helpers/upload-file';
+import {
+  uploadFiles,
+  type TUploadFilesProgress
+} from '@/helpers/upload-file';
 import { Permission, type TTempFile } from '@sharkord/shared';
 import {
   useCallback,
@@ -22,6 +25,8 @@ const useUploadFiles = (
   const filesRef = useRef<TTempFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadingSize, setUploadingSize] = useState(0);
+  const [uploadProgress, setUploadProgress] =
+    useState<TUploadFilesProgress | null>(null);
   const settings = usePublicServerSettings();
   const selectedChannel = useChannelById(channelId);
   const can = useCan();
@@ -72,6 +77,10 @@ const useUploadFiles = (
 
   const clearFiles = useCallback(() => {
     setFiles([]);
+  }, []);
+
+  const handleUploadProgress = useCallback((progress: TUploadFilesProgress) => {
+    setUploadProgress(progress);
   }, []);
 
   const openFileDialog = useCallback(() => {
@@ -138,16 +147,30 @@ const useUploadFiles = (
       const total = filesToUpload.reduce((acc, file) => acc + file.size, 0);
 
       setUploadingSize((size) => size + total);
+      setUploadProgress({
+        uploadedBytes: 0,
+        totalBytes: total,
+        currentFileIndex: 0,
+        fileCount: filesToUpload.length,
+        currentFileName: filesToUpload[0]?.name ?? '',
+        currentFileSize: filesToUpload[0]?.size ?? 0,
+        currentFileUploadedBytes: 0
+      });
 
-      const uploaded = await uploadFiles(filesToUpload);
+      try {
+        const uploaded = await uploadFiles(filesToUpload, handleUploadProgress);
 
-      addFiles(uploaded);
-      setUploading(false);
-      setUploadingSize((size) => size - total);
+        addFiles(uploaded);
+      } finally {
+        setUploading(false);
+        setUploadProgress(null);
+        setUploadingSize((size) => size - total);
+      }
     },
     [
       addFiles,
       can,
+      handleUploadProgress,
       settings,
       disabled,
       takeAllowedFiles,
@@ -173,12 +196,25 @@ const useUploadFiles = (
       const total = filesToUpload.reduce((acc, file) => acc + file.size, 0);
 
       setUploadingSize((size) => size + total);
+      setUploadProgress({
+        uploadedBytes: 0,
+        totalBytes: total,
+        currentFileIndex: 0,
+        fileCount: filesToUpload.length,
+        currentFileName: filesToUpload[0]?.name ?? '',
+        currentFileSize: filesToUpload[0]?.size ?? 0,
+        currentFileUploadedBytes: 0
+      });
 
-      const uploaded = await uploadFiles(filesToUpload);
+      try {
+        const uploaded = await uploadFiles(filesToUpload, handleUploadProgress);
 
-      addFiles(uploaded);
-      setUploading(false);
-      setUploadingSize((size) => size - total);
+        addFiles(uploaded);
+      } finally {
+        setUploading(false);
+        setUploadProgress(null);
+        setUploadingSize((size) => size - total);
+      }
     };
 
     const checkPermissions = () => {
@@ -267,7 +303,8 @@ const useUploadFiles = (
     disabled,
     containerRef,
     takeAllowedFiles,
-    canShareFilesInDirectMessages
+    canShareFilesInDirectMessages,
+    handleUploadProgress
   ]);
 
   const fileInputProps = useMemo(
@@ -288,6 +325,7 @@ const useUploadFiles = (
       clearFiles,
       uploading,
       uploadingSize,
+      uploadProgress,
       openFileDialog,
       fileInputProps
     }),
@@ -297,6 +335,7 @@ const useUploadFiles = (
       clearFiles,
       uploading,
       uploadingSize,
+      uploadProgress,
       openFileDialog,
       fileInputProps
     ]

@@ -1,9 +1,11 @@
+import { setIsAutoConnecting } from '@/features/app/actions';
+import { connect } from '@/features/server/actions';
 import { setDisconnectInfo } from '@/features/server/actions';
 import type { TDisconnectInfo } from '@/features/server/types';
 import { DisconnectCode } from '@sharkord/shared';
 import { Button } from '@sharkord/ui';
 import { AlertCircle, Gavel, RefreshCw, WifiOff } from 'lucide-react';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type TDisconnectedProps = {
@@ -12,6 +14,7 @@ type TDisconnectedProps = {
 
 const Disconnected = memo(({ info }: TDisconnectedProps) => {
   const { t } = useTranslation('disconnected');
+  const [reconnecting, setReconnecting] = useState(false);
 
   const disconnectType = useMemo(() => {
     const code = info.code;
@@ -44,6 +47,17 @@ const Disconnected = memo(({ info }: TDisconnectedProps) => {
 
   const handleReconnect = useCallback(() => {
     setDisconnectInfo(undefined);
+    setReconnecting(true);
+    setIsAutoConnecting(true);
+
+    connect()
+      .catch(() => {
+        // leave reconnect feedback to the normal disconnected flow
+      })
+      .finally(() => {
+        setReconnecting(false);
+        setIsAutoConnecting(false);
+      });
   }, []);
 
   return (
@@ -64,6 +78,7 @@ const Disconnected = memo(({ info }: TDisconnectedProps) => {
           <Button
             onClick={handleReconnect}
             className="inline-flex items-center gap-2"
+            disabled={reconnecting}
           >
             <RefreshCw className="h-4 w-4" />
             {t('goToConnectScreen')}

@@ -1,11 +1,20 @@
 import { useVoiceUsersByChannelId } from '@/features/server/hooks';
 import { useOwnUserId } from '@/features/server/users/hooks';
 import {
+  toggleEnabledIncomingExternalVideoStreamId,
+  toggleEnabledIncomingScreenShareUserId,
+  toggleEnabledIncomingVideoUserId
+} from '@/features/server/voice/actions';
+import {
+  useEnabledIncomingExternalVideoStreamIds,
+  useEnabledIncomingScreenShareUserIds,
+  useEnabledIncomingVideoUserIds,
+  useHideIncomingVideoStreams,
   useHideNonVideoParticipants,
   useHideOwnScreenShare,
   useVoiceChannelExternalStreamsList
 } from '@/features/server/voice/hooks';
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { ControlsBar } from './controls-bar';
 import { ExternalStreamCard } from './external-stream-card';
 import {
@@ -24,18 +33,46 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
   const voiceUsers = useVoiceUsersByChannelId(channelId);
   const externalStreams = useVoiceChannelExternalStreamsList(channelId);
   const { pinnedCard, pinCard, unpinCard, isPinned } = usePinCardController();
+  const hideIncomingVideoStreams = useHideIncomingVideoStreams();
+  const enabledIncomingVideoUserIds = useEnabledIncomingVideoUserIds();
+  const enabledIncomingScreenShareUserIds =
+    useEnabledIncomingScreenShareUserIds();
+  const enabledIncomingExternalVideoStreamIds =
+    useEnabledIncomingExternalVideoStreamIds();
   const hideNonVideoParticipants = useHideNonVideoParticipants();
   const hideOwnScreenShare = useHideOwnScreenShare();
   const ownUserId = useOwnUserId();
+
+  const isVideoEnabled = useCallback(
+    (type: 'user' | 'screen' | 'external', id: number) => {
+      if (!hideIncomingVideoStreams) {
+        return true;
+      }
+
+      switch (type) {
+        case 'user':
+          return enabledIncomingVideoUserIds.includes(id);
+        case 'screen':
+          return enabledIncomingScreenShareUserIds.includes(id);
+        case 'external':
+          return enabledIncomingExternalVideoStreamIds.includes(id);
+      }
+    },
+    [
+      enabledIncomingExternalVideoStreamIds,
+      enabledIncomingScreenShareUserIds,
+      enabledIncomingVideoUserIds,
+      hideIncomingVideoStreams
+    ]
+  );
 
   const cards = useMemo(() => {
     const cards: React.ReactNode[] = [];
 
     // Check if there are any video streams at all
     const hasAnyVideoStreams =
-      voiceUsers.some(
-        (user) => user.state.webcamEnabled || user.state.sharingScreen
-      ) || externalStreams.some((stream) => stream.tracks.video);
+      voiceUsers.some((user) => user.state.webcamEnabled || user.state.sharingScreen) ||
+      externalStreams.some((stream) => stream.tracks.video);
 
     // Only apply the filter if there are some video streams
     const shouldFilterNonVideo = hideNonVideoParticipants && hasAnyVideoStreams;
@@ -43,6 +80,7 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
     voiceUsers.forEach((voiceUser) => {
       const userCardId = `user-${voiceUser.id}`;
       const hasVideo = voiceUser.state.webcamEnabled;
+      const showVideo = isVideoEnabled('user', voiceUser.id);
 
       // Only show user card if not filtering, or if they have video
       if (!shouldFilterNonVideo || hasVideo) {
@@ -50,6 +88,9 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
           <VoiceUserCard
             key={userCardId}
             userId={voiceUser.id}
+            hideVideo={!showVideo}
+            canToggleVideo={hideIncomingVideoStreams && voiceUser.id !== ownUserId}
+            onToggleVideo={() => toggleEnabledIncomingVideoUserId(voiceUser.id)}
             isPinned={isPinned(userCardId)}
             onPin={() =>
               pinCard({
@@ -69,11 +110,17 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
         hideOwnScreenShare && voiceUser.id === ownUserId;
       if (voiceUser.state.sharingScreen && !shouldHideOwnScreenShare) {
         const screenShareCardId = `screen-share-${voiceUser.id}`;
+        const showScreenShare = isVideoEnabled('screen', voiceUser.id);
 
         cards.push(
           <ScreenShareCard
             key={screenShareCardId}
             userId={voiceUser.id}
+            hideVideo={!showScreenShare}
+            canToggleVideo={hideIncomingVideoStreams && voiceUser.id !== ownUserId}
+            onToggleVideo={() =>
+              toggleEnabledIncomingScreenShareUserId(voiceUser.id)
+            }
             isPinned={isPinned(screenShareCardId)}
             onPin={() =>
               pinCard({
@@ -92,12 +139,18 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
     externalStreams.forEach((stream) => {
       const externalStreamCardId = `external-stream-${stream.streamId}`;
       const hasVideo = stream.tracks.video;
+      const showVideo = isVideoEnabled('external', stream.streamId);
 
       // Only show external stream card if not filtering, or if it has video
       if (!shouldFilterNonVideo || hasVideo) {
         cards.push(
           <ExternalStreamCard
             key={externalStreamCardId}
+            hideVideo={!showVideo}
+            canToggleVideo={hideIncomingVideoStreams && hasVideo}
+            onToggleVideo={() =>
+              toggleEnabledIncomingExternalVideoStreamId(stream.streamId)
+            }
             streamId={stream.streamId}
             stream={stream}
             isPinned={isPinned(externalStreamCardId)}
@@ -122,8 +175,10 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
     isPinned,
     pinCard,
     unpinCard,
+    hideIncomingVideoStreams,
     hideNonVideoParticipants,
     hideOwnScreenShare,
+    isVideoEnabled,
     ownUserId
   ]);
 

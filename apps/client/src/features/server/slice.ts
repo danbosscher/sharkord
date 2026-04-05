@@ -1,5 +1,9 @@
 import type { TPinnedCard } from '@/components/channel-view/voice/hooks/use-pin-card-controller';
-import { getLocalStorageItemBool, LocalStorageKey } from '@/helpers/storage';
+import {
+  getLocalStorageItemAsJSON,
+  getLocalStorageItemBool,
+  LocalStorageKey
+} from '@/helpers/storage';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type {
   TCategory,
@@ -63,6 +67,10 @@ export interface IServerState {
   pluginsMetadata: TPluginMetadata[];
   pluginCommands: TCommandsMapByPlugin;
   hideNonVideoParticipants: boolean;
+  hideIncomingVideoStreams: boolean;
+  enabledIncomingVideoUserIds: number[];
+  enabledIncomingScreenShareUserIds: number[];
+  enabledIncomingExternalVideoStreamIds: number[];
   showUserBannersInVoice: boolean;
   hideOwnScreenShare: boolean;
   pluginComponents: TPluginComponentsMap;
@@ -107,6 +115,22 @@ const initialState: IServerState = {
     LocalStorageKey.HIDE_NON_VIDEO_PARTICIPANTS,
     false
   ),
+  hideIncomingVideoStreams: getLocalStorageItemBool(
+    LocalStorageKey.HIDE_INCOMING_VIDEO_STREAMS,
+    false
+  ),
+  enabledIncomingVideoUserIds: getLocalStorageItemAsJSON<number[]>(
+    LocalStorageKey.ENABLED_INCOMING_VIDEO_USER_IDS,
+    []
+  )!,
+  enabledIncomingScreenShareUserIds: getLocalStorageItemAsJSON<number[]>(
+    LocalStorageKey.ENABLED_INCOMING_SCREEN_SHARE_USER_IDS,
+    []
+  )!,
+  enabledIncomingExternalVideoStreamIds: getLocalStorageItemAsJSON<number[]>(
+    LocalStorageKey.ENABLED_INCOMING_EXTERNAL_VIDEO_STREAM_IDS,
+    []
+  )!,
   showUserBannersInVoice: getLocalStorageItemBool(
     LocalStorageKey.VOICE_CHAT_SHOW_USER_BANNERS,
     true
@@ -739,6 +763,30 @@ export const serverSlice = createSlice({
     },
     setHideNonVideoParticipants: (state, action: PayloadAction<boolean>) => {
       state.hideNonVideoParticipants = action.payload;
+    },
+    setHideIncomingVideoStreams: (
+      state,
+      action: PayloadAction<boolean>
+    ) => {
+      state.hideIncomingVideoStreams = action.payload;
+    },
+    setEnabledIncomingVideoUserIds: (
+      state,
+      action: PayloadAction<number[]>
+    ) => {
+      state.enabledIncomingVideoUserIds = action.payload;
+    },
+    setEnabledIncomingScreenShareUserIds: (
+      state,
+      action: PayloadAction<number[]>
+    ) => {
+      state.enabledIncomingScreenShareUserIds = action.payload;
+    },
+    setEnabledIncomingExternalVideoStreamIds: (
+      state,
+      action: PayloadAction<number[]>
+    ) => {
+      state.enabledIncomingExternalVideoStreamIds = action.payload;
     },
     setShowUserBannersInVoice: (state, action: PayloadAction<boolean>) => {
       state.showUserBannersInVoice = action.payload;

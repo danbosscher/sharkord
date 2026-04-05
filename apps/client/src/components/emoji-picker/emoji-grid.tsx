@@ -1,4 +1,5 @@
 import {
+  getEmojiItemKey,
   shouldUseFallbackImage,
   type TEmojiItem
 } from '@/components/tiptap-input/helpers';
@@ -71,7 +72,11 @@ const EmojiGrid = memo(({ emojis, onSelect }: TEmojiGridProps) => {
     return (
       <div className="grid grid-cols-8 gap-1 p-3">
         {emojis.map((emoji) => (
-          <EmojiButton key={emoji.name} emoji={emoji} onSelect={onSelect} />
+          <EmojiButton
+            key={getEmojiItemKey(emoji)}
+            emoji={emoji}
+            onSelect={onSelect}
+          />
         ))}
       </div>
     );
@@ -84,7 +89,10 @@ const EmojiGrid = memo(({ emojis, onSelect }: TEmojiGridProps) => {
       overscan={200}
       listClassName="grid grid-cols-8 gap-1 p-3"
       itemContent={itemContent}
-      computeItemKey={(index) => emojis[index]?.name ?? index}
+      computeItemKey={(index) => {
+        const emoji = emojis[index];
+        return emoji ? getEmojiItemKey(emoji) : index;
+      }}
     />
   );
 });

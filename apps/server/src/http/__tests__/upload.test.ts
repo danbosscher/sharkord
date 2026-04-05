@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'fs/promises';
 import path from 'path';
 import { login, uploadFile } from '../../__tests__/helpers';
-import { tdb, testsBaseUrl } from '../../__tests__/setup';
+import { tdb, testsBaseUrl } from '../../__tests__/test-context';
 import { settings } from '../../db/schema';
 import { TMP_PATH } from '../../helpers/paths';
 import { sanitizeFileName } from '../helpers';

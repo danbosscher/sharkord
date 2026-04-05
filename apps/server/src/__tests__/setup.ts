@@ -1,13 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, beforeAll, beforeEach, mock } from 'bun:test';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 import fs from 'fs/promises';
 import { DATA_PATH } from '../helpers/paths';
 import { createHttpServer } from '../http';
 import { loadMediasoup } from '../utils/mediasoup';
 import { clearRateLimitersForTests } from '../utils/rate-limiters/rate-limiter';
-import { DRIZZLE_PATH, setTestDb } from './mock-db';
+import { TEST_MIGRATIONS_PATH, setTestDb } from './mock-db';
 import { seedDatabase } from './seed';
 
 /**
@@ -45,15 +45,11 @@ if (DISABLE_CONSOLE) {
   }));
 }
 
-let tdb: BunSQLiteDatabase;
 let sqlite: Database | null = null;
-let testsBaseUrl: string;
 
 beforeAll(async () => {
   await createHttpServer(9999);
   await loadMediasoup();
-
-  testsBaseUrl = 'http://localhost:9999';
 });
 
 beforeEach(async () => {
@@ -70,13 +66,13 @@ beforeEach(async () => {
   sqlite = new Database(':memory:', { create: true, strict: true });
   sqlite.run('PRAGMA foreign_keys = ON;');
 
-  tdb = drizzle({ client: sqlite });
+  const tdb = drizzle({ client: sqlite });
 
   // updates the mocked db to use this new test database
   setTestDb(tdb);
 
   // apply migrations and seed data for this test
-  await migrate(tdb, { migrationsFolder: DRIZZLE_PATH });
+  await migrate(tdb, { migrationsFolder: TEST_MIGRATIONS_PATH });
   await seedDatabase(tdb);
 });
 
@@ -100,5 +96,3 @@ afterAll(async () => {
     // ignore
   }
 });
-
-export { tdb, testsBaseUrl };

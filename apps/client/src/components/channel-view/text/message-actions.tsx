@@ -2,6 +2,7 @@ import { EmojiPicker } from '@/components/emoji-picker';
 import { useRecentEmojis } from '@/components/emoji-picker/use-recent-emojis';
 import { Protect } from '@/components/protect';
 import {
+  getEmojiItemKey,
   shouldUseFallbackImage,
   type TEmojiItem
 } from '@/components/tiptap-input/helpers';
@@ -20,6 +21,7 @@ import {
   Trash
 } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
+import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -56,16 +58,7 @@ const MessageActions = memo(
       [recentEmojis]
     );
 
-    const onDeleteClick = useCallback(async () => {
-      const choice = await requestConfirmation({
-        title: t('deleteMessageTitle'),
-        message: t('deleteMessageConfirm'),
-        confirmLabel: t('deleteLabel'),
-        cancelLabel: t('cancel')
-      });
-
-      if (!choice) return;
-
+    const deleteMessage = useCallback(async () => {
       const trpc = getTRPCClient();
 
       try {
@@ -75,6 +68,24 @@ const MessageActions = memo(
         toast.error(t('failedDeleteMessage'));
       }
     }, [messageId, t]);
+
+    const onDeleteClick = useCallback(
+      async (event: MouseEvent<HTMLButtonElement>) => {
+        if (!event.shiftKey) {
+          const choice = await requestConfirmation({
+            title: t('deleteMessageTitle'),
+            message: t('deleteMessageConfirm'),
+            confirmLabel: t('deleteLabel'),
+            cancelLabel: t('cancel')
+          });
+
+          if (!choice) return;
+        }
+
+        await deleteMessage();
+      },
+      [deleteMessage, t]
+    );
 
     const onEmojiSelect = useCallback(
       async (emoji: TEmojiItem) => {
@@ -113,7 +124,7 @@ const MessageActions = memo(
     }, [messageId, t]);
 
     return (
-      <div className="gap-1 absolute right-0 -top-6 z-10 hidden group-hover:flex [&:has([data-state=open])]:flex items-center space-x-1 rounded-lg shadow-lg border border-border p-2 transition-all bg-background">
+      <div className="gap-1 absolute right-0 -top-6 z-10 hidden group-hover:flex group-focus-within:flex [&:has([data-state=open])]:flex items-center space-x-1 rounded-lg shadow-lg border border-border p-2 transition-all bg-background">
         {onReply && (
           <IconButton
             size="sm"
@@ -168,7 +179,7 @@ const MessageActions = memo(
           <div className="flex items-center space-x-0.5 border-l pl-1 gap-1">
             {recentEmojisToShow.map((emoji) => (
               <button
-                key={emoji.name}
+                key={getEmojiItemKey(emoji)}
                 type="button"
                 onClick={() => onEmojiSelect(emoji)}
                 className="w-6 h-6 flex items-center justify-center hover:bg-accent rounded-md transition-colors text-md"

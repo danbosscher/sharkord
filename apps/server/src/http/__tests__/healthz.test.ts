@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { testsBaseUrl } from '../../__tests__/setup';
+import { testsBaseUrl } from '../../__tests__/test-context';
 
 describe('/healthz', () => {
   test('should return 200 status', async () => {

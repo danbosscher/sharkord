@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { channels, messages, roles, settings, users } from '../db/schema';
-import { tdb } from './setup';
+import { tdb } from './test-context';
 
 describe('tests setup', () => {
   test('should seed database with initial data', async () => {

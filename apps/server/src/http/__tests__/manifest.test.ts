@@ -1,6 +1,6 @@
 import type { TWebAppManifest } from '@sharkord/shared';
 import { describe, expect, test } from 'bun:test';
-import { testsBaseUrl } from '../../__tests__/setup';
+import { testsBaseUrl } from '../../__tests__/test-context';
 
 describe('/manifest.json', () => {
   test('should return PWA manifest with correct structure', async () => {

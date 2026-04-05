@@ -1,11 +1,17 @@
 name: Publish Development Image
 
 on:
+  push:
+    branches: [development]
   workflow_dispatch:
 
 concurrency:
   group: docker-dev
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   ci:
@@ -18,18 +24,40 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build project artifacts
         uses: ./.github/actions/build-sharkord
 
-      - name: Build and publish Docker image
+      - name: Resolve image names
+        id: image_names
+        shell: bash
+        run: |
+          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "repo_name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish server image
         uses: ./.github/actions/docker-build-publish
         with:
-          docker_username: ${{ secrets.DOCKER_USERNAME }}
-          docker_password: ${{ secrets.DOCKER_PASSWORD }}
-          tags: ${{ secrets.DOCKER_USERNAME }}/sharkord:dev
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: ghcr.io/${{ steps.image_names.outputs.owner_lc }}/${{ steps.image_names.outputs.repo_name }}:dev
           labels: |
             org.opencontainers.image.title=Sharkord
             org.opencontainers.image.description=Sharkord Server (dev)
-            org.opencontainers.image.source=https://github.com/Sharkord/sharkord
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and publish web image
+        uses: ./.github/actions/docker-build-publish
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          file: Dockerfile.web
+          tags: ghcr.io/${{ steps.image_names.outputs.owner_lc }}/${{ steps.image_names.outputs.repo_name }}-web:dev
+          labels: |
+            org.opencontainers.image.title=Sharkord Web
+            org.opencontainers.image.description=Sharkord Web Client (dev)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

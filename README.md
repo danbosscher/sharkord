@@ -51,8 +51,18 @@ docker run \
   -p 40000:40000/udp \
   -v ./data:/home/bun/.config/sharkord \
   --name sharkord \
-  sharkord/sharkord:latest
+  ghcr.io/<owner>/sharkord:latest
 ```
+
+#### Web Container
+
+An optional static web image is also published to GHCR:
+
+```bash
+docker pull ghcr.io/<owner>/sharkord-web:latest
+```
+
+This image only serves the built client assets. It expects a reverse proxy setup that keeps the client on the same origin as the Sharkord server for API, WebSocket, file, and plugin routes.
 
 > [!NOTE]
 > Upon first launch, Sharkord will create a secure token and print it to the console. This token allows ANYONE to gain owner access to your server, so make sure to store it securely and do not lose it!
@@ -60,6 +70,16 @@ docker run \
 Once the server is running, open your web browser and navigate to [http://localhost:4991](http://localhost:4991) to access the Sharkord client interface. If you're running the server on a different machine, replace `localhost` with the server's IP address or domain name.
 
 Check out our [Documentation](https://sharkord.com/docs) for more detailed setup instructions, configuration options, and troubleshooting tips.
+
+## Plugin-First Recommendations
+
+For a small private group, this fork keeps core focused on reliability, voice, chat, and moderation basics. Extra "Discord toy" features should stay plugin-first unless they become critical to the core product.
+
+- Soundboard: use the Sharkord org soundboard plugin instead of building it into core.
+- Music in voice channels: use [`Sharkord/music-bot`](https://github.com/Sharkord/music-bot).
+- Automod experiments: prefer plugin prototypes first, since the SDK already exposes message-create events and moderation actions.
+- Retention/cleanup experiments: prototype those as plugins first unless you need first-class admin UX in core.
+- Media/voice extensions: keep optional extras such as IPTV, clip boards, and stream integrations plugin-oriented where possible.
 
 ## Contributing
 

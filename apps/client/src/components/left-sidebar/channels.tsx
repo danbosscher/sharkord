@@ -263,9 +263,10 @@ const Channel = memo(({ channelId, isSelected, onClick }: TChannelProps) => {
 
 type TChannelsProps = {
   categoryId: number;
+  onNavigate?: () => void;
 };
 
-const Channels = memo(({ categoryId }: TChannelsProps) => {
+const Channels = memo(({ categoryId, onNavigate }: TChannelsProps) => {
   const { t } = useTranslation('sidebar');
   const channels = useChannelsByCategoryId(categoryId);
   const selectedChannelId = useSelectedChannelId();
@@ -283,7 +284,7 @@ const Channels = memo(({ categoryId }: TChannelsProps) => {
     })
   );
 
-  const onChannelClick = useSelectChannel();
+  const onChannelClick = useSelectChannel(onNavigate);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {

@@ -10,7 +10,7 @@ import {
   useServerName
 } from '@/features/server/hooks';
 import { ChannelType, PluginSlot } from '@sharkord/shared';
-import { Alert, AlertDescription } from '@sharkord/ui';
+import { Alert, AlertDescription, Button } from '@sharkord/ui';
 import { AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,10 +18,17 @@ import { useTranslation } from 'react-i18next';
 type TContentWrapperProps = {
   isDmMode: boolean;
   selectedDmChannelId?: number;
+  onOpenChannels: () => void;
+  onOpenMembers: () => void;
 };
 
 const ContentWrapper = memo(
-  ({ isDmMode, selectedDmChannelId }: TContentWrapperProps) => {
+  ({
+    isDmMode,
+    selectedDmChannelId,
+    onOpenChannels,
+    onOpenMembers
+  }: TContentWrapperProps) => {
     const { t } = useTranslation();
     const selectedChannelId = useSelectedChannelId();
     const selectedChannelType = useSelectedChannelType();
@@ -88,10 +95,23 @@ const ContentWrapper = memo(
                 {t('welcomeToServer', { name: serverName })}
               </h2>
             </div>
-            <Alert variant="destructive" className="max-w-md">
+            <Alert variant="info" className="max-w-md">
               <AlertTriangle />
-              <AlertDescription>{t('mobileNotOptimized')}</AlertDescription>
+              <AlertDescription>
+                {t('mobileBasicsNotice', {
+                  defaultValue:
+                    'Mobile support is now usable for core chat and voice flows, but some desktop-first polish is still intentionally deferred in this fork.'
+                })}
+              </AlertDescription>
             </Alert>
+            <div className="flex w-full max-w-md flex-col gap-2">
+              <Button variant="outline" onClick={onOpenChannels}>
+                {t('topbar:openChannelsSidebar')}
+              </Button>
+              <Button variant="outline" onClick={onOpenMembers}>
+                {t('topbar:openMembersSidebar')}
+              </Button>
+            </div>
             <div className="flex flex-col gap-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className="text-lg">

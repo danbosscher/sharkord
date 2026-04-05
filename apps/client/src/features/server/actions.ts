@@ -20,6 +20,12 @@ import { initSubscriptions } from './subscriptions';
 import { type TDisconnectInfo } from './types';
 
 let unsubscribeFromServer: (() => void) | null = null;
+let connectInFlight: Promise<void> | null = null;
+
+export const clearServerSubscriptions = () => {
+  unsubscribeFromServer?.();
+  unsubscribeFromServer = null;
+};
 
 export const setConnected = (status: boolean) => {
   store.dispatch(serverSliceActions.setConnected(status));
@@ -59,7 +65,7 @@ export const setActiveFullscreenPluginId = (pluginId: string | undefined) => {
   store.dispatch(serverSliceActions.setActiveFullscreenPluginId(pluginId));
 };
 
-export const connect = async () => {
+const performConnect = async () => {
   const state = store.getState();
   const info = infoSelector(state);
 
@@ -83,12 +89,29 @@ export const connect = async () => {
   await joinServer(handshakeHash);
 };
 
+export const connect = async () => {
+  if (connectInFlight) {
+    return connectInFlight;
+  }
+
+  setConnecting(true);
+
+  connectInFlight = performConnect().finally(() => {
+    connectInFlight = null;
+    setConnecting(false);
+  });
+
+  return connectInFlight;
+};
+
 export const joinServer = async (handshakeHash: string, password?: string) => {
   const trpc = getTRPCClient();
   const data = await trpc.others.joinServer.query({ handshakeHash, password });
 
   logDebug('joinServer', data);
+  setDisconnectInfo(undefined);
 
+  clearServerSubscriptions();
   unsubscribeFromServer = initSubscriptions();
 
   store.dispatch(serverSliceActions.setInitialData(data));
@@ -103,8 +126,8 @@ export const joinServer = async (handshakeHash: string, password?: string) => {
 };
 
 export const disconnectFromServer = () => {
+  clearServerSubscriptions();
   cleanup();
-  unsubscribeFromServer?.();
 };
 
 export const jumpToMessage = (target: TMessageJumpToTarget) => {

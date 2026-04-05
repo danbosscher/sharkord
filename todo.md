@@ -1,0 +1,64 @@
+# Sharkord TODO
+
+Reviewed against upstream `Sharkord/sharkord` open issues and PRs on 2026-04-05, plus the current plugin registry. This is a filtered list for using Sharkord as a Discord replacement for a small private group, not a copy of the whole upstream backlog. In this fork, an item counts as "done" when it is either implemented locally or explicitly deferred by fork policy.
+
+## Post-Review Hardening
+
+- [x] Repair the server test bootstrap before trusting regressions. Post-review hardening switched test migrations from the runtime `data-test/drizzle` embed path back to the checked-in `src/db/migrations` tree, and pinned the shared test base URL instead of leaving it to late assignment in `beforeAll`. This restores the test harness to the repo's real schema source so `bun test` exercises application behavior again instead of dying in setup.
+- [x] Fail voice initialization when the microphone never comes up. Post-review hardening tightened `VoiceProvider` so microphone startup errors are rethrown, partial audio state is cleared, and the main voice init path refuses to mark the call connected unless the local audio producer actually exists. This closes the false-positive "connected but silently not sending mic audio" state found in review.
+- [x] Make live device switching transactional for active calls. Post-review hardening changed the device settings screen so new settings are only persisted after the in-call apply succeeds; on failure, the form rolls back to the previous values. The voice layer also now attempts to restore the previous microphone/webcam configuration after a failed live restart, instead of leaving the current call half-torn-down while persisting a broken device choice.
+- [x] Broaden the screen-share audio fallback path. Post-review hardening widened the detection for recoverable audio-capture failures so browsers that surface system-audio problems as plain `Error` messages, not only `DOMException`, still fall back to video-only sharing. The device UI now also renders the "share system audio" toggle with the same default semantics as the runtime path.
+- [x] Make the manual release workflow rerunnable. Post-review hardening added release-tag existence checks so rerunning the GitHub release workflow after a partial failure does not immediately die on `git tag` creation. The workflow now only creates and pushes the version tag when it is actually missing.
+
+## Do First
+
+- [x] Stabilize reconnect and session behavior. Treat [#552](https://github.com/Sharkord/sharkord/issues/552), [#563](https://github.com/Sharkord/sharkord/issues/563), and [#597](https://github.com/Sharkord/sharkord/issues/597) as one reliability track: reconnect cleanly, keep users logged in, and stop channels from silently going stale. Local fixes landed: unexpected websocket disconnects no longer wipe saved login tokens, transient socket loss now drops the app out of the connected state instead of leaving stale UI behind, the disconnected screen retries the current session instead of dumping users straight back to the connect form, transient reconnects are single-flight, and browser online/foreground events can retry recovery. Remaining edge cases are maintenance, not a current fork blocker.
+- [x] Reduce voice fragility. The upstream `VoiceProvider` refactor issue [#642](https://github.com/Sharkord/sharkord/issues/642) is still valid upstream, but this fork now ships the core recovery pieces it needed: failed voice init cleans up partial state, reconnect can reattach to the same channel, stale async init/recovery work is invalidated, reconnect restores webcam and screen-share state, browser-ended capture clears both local and server state, stale screen-share audio producers are cleaned up server-side, and server consumer bookkeeping no longer lets audio/video consumers overwrite each other. A larger architectural refactor is deferred.
+- [x] Improve weak-connection behavior for voice/video. Prioritize opt-in viewing and quick disable controls from [#123](https://github.com/Sharkord/sharkord/issues/123), [#602](https://github.com/Sharkord/sharkord/issues/602), and [#657](https://github.com/Sharkord/sharkord/issues/657) so one person's stream does not tank everyone else. This fork now ships the practical baseline: audio-only mode, a direct in-call toggle, real consumer teardown/re-request instead of cosmetic hiding, preserved screen-share audio, and per-stream opt-in video restoration.
+- [x] Add fullscreen stream viewing. Implemented locally for screen share, external video, and plugin video streams; this covers the main value of upstream PR [#659](https://github.com/Sharkord/sharkord/pull/659), [#62](https://github.com/Sharkord/sharkord/issues/62), and [#568](https://github.com/Sharkord/sharkord/issues/568).
+- [x] Make default client settings owner-configurable. Added server-owned defaults for echo cancellation and noise suppression, exposed in Server Settings > General and applied to new users before local device settings are saved, covering the main value of [#511](https://github.com/Sharkord/sharkord/issues/511).
+- [x] Rename users from the management UI. Implemented locally for authorized admins/moderators, covering the main value of upstream issue [#595](https://github.com/Sharkord/sharkord/issues/595) and PR [#598](https://github.com/Sharkord/sharkord/pull/598).
+- [x] Improve first-run clarity and moderation basics. Implemented locally as an initial profile setup prompt on first login, covering the main value of upstream PR [#658](https://github.com/Sharkord/sharkord/pull/658) for [#59](https://github.com/Sharkord/sharkord/issues/59).
+
+## Do Soon
+
+- [x] Improve upload and compose UX. File upload progress UI is now implemented locally for chat attachments, covering the main remaining value of [#592](https://github.com/Sharkord/sharkord/issues/592); any extra upload polish is now follow-on work.
+- [x] Add fast Shift+click message deletion. Implemented locally for the trash action so moderators and authors can bypass the confirm dialog when they intentionally hold Shift, covering [#628](https://github.com/Sharkord/sharkord/issues/628) without changing the default safe path.
+- [x] Show descriptive compose placeholders. Implemented locally for channels, voice channels, and DMs so the input says what the current target is.
+- [x] Add inline media playback for uploaded files. Implemented locally for uploaded audio/video attachments so shared clips no longer always kick users out to a new tab, covering the main pain point from [#560](https://github.com/Sharkord/sharkord/issues/560) and [#651](https://github.com/Sharkord/sharkord/issues/651).
+- [x] Fix obvious UI trust-breakers. Moved app toasts away from the bottom-right action area to address the overlap bug in [#648](https://github.com/Sharkord/sharkord/issues/648).
+- [x] Keep the connect screen focused on the browser path. The temporary desktop download links were removed again after review because the packaged binaries do not provide enough client-side benefit over the browser flow for this fork; the launcher/login page now stays focused on connecting to the hosted app.
+- [x] Publish public builds through GitHub. Implemented locally: release builds now target GitHub Releases for Windows, Linux, and macOS ARM64 binaries, and both release/dev workflows publish public GHCR images for the main app plus a separate static web client image.
+- [x] Finish mobile basics. Issue [#638](https://github.com/Sharkord/sharkord/issues/638) plus the remaining voice control gaps in [#602](https://github.com/Sharkord/sharkord/issues/602) matter if people join from phones. This fork now has the baseline it needs: explicit channel/member/search buttons, reachable in-call controls on mobile, touch-visible message and stream actions, full-screen thread and voice-text overlays, readable thread starters, larger close affordances, and mobile navigation that dismisses itself correctly. Remaining polish is deferred.
+- [x] Mobile message actions on touch/no-hover devices. Implemented the [#638](https://github.com/Sharkord/sharkord/issues/638) behavior locally so tapping/focusing a message reveals its action rail without breaking desktop hover behavior.
+- [x] Decide how to handle identity ambiguity. Local policy is now explicit: duplicate display names remain allowed, and Sharkord disambiguates them with stable `#id` labels in mentions and member lists. Onboarding, self-profile editing, and admin rename flows now state that policy directly, which closes the remaining product decision from [#599](https://github.com/Sharkord/sharkord/issues/599).
+
+## Plugin First
+
+- [x] Do not build soundboard in core first. Upstream issue [#656](https://github.com/Sharkord/sharkord/issues/656) is already covered in the marketplace by `sharkord-soundboard` / SoundDrop from the upstream plugin registry, and this fork now documents that plugin-first decision explicitly in the README.
+- [x] Use [`music-bot`](https://github.com/Sharkord/music-bot) for voice-channel music instead of bloating core. This fork now treats music playback as plugin territory and documents that recommendation explicitly.
+- [x] Try plugin-based automod before core moderation changes. Issue [#500](https://github.com/Sharkord/sharkord/issues/500) remains a plugin-first path for this fork, and that policy is now documented instead of being left implicit.
+- [x] Consider plugin-based retention experiments before core retention UX. Issues [#564](https://github.com/Sharkord/sharkord/issues/564) and [#55](https://github.com/Sharkord/sharkord/issues/55) are explicitly treated as plugin-first experiments for this fork unless first-class admin UX becomes necessary.
+- [x] Keep media/voice extensions plugin-oriented where possible. The README now codifies that extras like music, IPTV, and other stream toys stay out of core until the core is boring and stable.
+
+## Watch Upstream PRs
+
+- [x] [#659](https://github.com/Sharkord/sharkord/pull/659) fullscreen stream cards, implemented locally instead of waiting on upstream merge
+- [x] [#658](https://github.com/Sharkord/sharkord/pull/658) initial profile setup, implemented locally
+- [x] [#598](https://github.com/Sharkord/sharkord/pull/598) rename user management, implemented locally
+- [x] [#535](https://github.com/Sharkord/sharkord/pull/535) auto-growing compose input, implemented locally instead of waiting on upstream merge
+- [x] [#532](https://github.com/Sharkord/sharkord/pull/532) compose placeholder text, implemented locally
+- [x] [#541](https://github.com/Sharkord/sharkord/pull/541) markdown in chat. For this fork, inline markdown support is sufficient: common inline markdown typed as plain text now renders in message view, and the compose/edit path converts the same syntax on send, edit, and plain-text paste while preserving mentions, emojis, and slash-command editing. Full upstream markdown-native editor parity is deferred.
+- [x] [#553](https://github.com/Sharkord/sharkord/pull/553) avatar/banner/logo cropper. Deferred for this fork; current upload flows are acceptable for a small private deployment, and this did not justify displacing reliability work.
+- [x] [#237](https://github.com/Sharkord/sharkord/pull/237) OIDC auth. Deferred unless SSO becomes important for this deployment.
+
+## Not A Priority For This Group
+
+- [x] Themes from [#623](https://github.com/Sharkord/sharkord/issues/623) and [#172](https://github.com/Sharkord/sharkord/issues/172). Deferred for this fork.
+- [x] Additional translations like [#633](https://github.com/Sharkord/sharkord/issues/633). Deferred for this fork.
+- [x] Bigger infrastructure work like [#292](https://github.com/Sharkord/sharkord/issues/292), [#164](https://github.com/Sharkord/sharkord/issues/164), [#328](https://github.com/Sharkord/sharkord/issues/328), and [#298](https://github.com/Sharkord/sharkord/issues/298) unless your hosting model specifically needs them. Deferred for this fork.
+
+## Local Fork Defaults
+
+- [x] Default microphone processing is now on for first-time users in this fork: browser echo cancellation is enabled and noise suppression defaults to `standard`.
+- [x] Server-owned default voice settings panel added. New-user defaults for echo cancellation and noise suppression are now configured centrally instead of relying only on client local storage.

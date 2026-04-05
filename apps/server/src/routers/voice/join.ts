@@ -54,11 +54,6 @@ const joinVoiceRoute = rateLimitedProcedure(protectedProcedure, {
       ctx.user.id
     );
 
-    invariant(!userAlreadyInVoiceChannel, {
-      code: 'BAD_REQUEST',
-      message: 'User already in a voice channel'
-    });
-
     const runtime = VoiceRuntime.findById(input.channelId);
 
     invariant(runtime, {
@@ -66,18 +61,36 @@ const joinVoiceRoute = rateLimitedProcedure(protectedProcedure, {
       message: 'Voice runtime not found for this channel'
     });
 
-    runtime.addUser(ctx.user.id, input.state);
+    invariant(
+      !userAlreadyInVoiceChannel || userAlreadyInVoiceChannel.id === runtime.id,
+      {
+        code: 'BAD_REQUEST',
+        message: 'User already in a voice channel'
+      }
+    );
 
-    const state = runtime.getUserState(ctx.user.id);
+    const isReattaching = !!runtime.getUser(ctx.user.id);
+
+    if (isReattaching) {
+      runtime.updateUserState(ctx.user.id, input.state);
+    } else {
+      runtime.addUser(ctx.user.id, input.state);
+    }
 
     ctx.currentVoiceChannelId = channel.id;
-    ctx.pubsub.publish(ServerEvents.USER_JOIN_VOICE, {
-      channelId: input.channelId,
-      userId: ctx.user.id,
-      state
-    });
+    if (!isReattaching) {
+      const state = runtime.getUserState(ctx.user.id);
 
-    logger.info('%s joined voice channel %s', ctx.user.name, channel.name);
+      ctx.pubsub.publish(ServerEvents.USER_JOIN_VOICE, {
+        channelId: input.channelId,
+        userId: ctx.user.id,
+        state
+      });
+
+      logger.info('%s joined voice channel %s', ctx.user.name, channel.name);
+    } else {
+      logger.info('%s reattached to voice channel %s', ctx.user.name, channel.name);
+    }
 
     const router = runtime.getRouter();
 

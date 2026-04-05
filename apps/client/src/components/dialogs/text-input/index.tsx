@@ -10,7 +10,7 @@ import {
   AutoFocus,
   Input
 } from '@sharkord/ui';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TDialogBaseProps } from '../types';
 
@@ -22,6 +22,7 @@ type TTextInputDialogProps = TDialogBaseProps & {
   confirmLabel?: string;
   cancelLabel?: string;
   allowEmpty?: boolean;
+  defaultValue?: string;
   isModalOpen: boolean;
   type?: 'text' | 'password';
 };
@@ -37,10 +38,17 @@ const TextInputDialog = memo(
     confirmLabel,
     cancelLabel,
     allowEmpty,
+    defaultValue,
     type
   }: TTextInputDialogProps) => {
     const { t } = useTranslation('dialogs');
-    const [value, setValue] = useState<string | undefined>(undefined);
+    const [value, setValue] = useState<string>(defaultValue ?? '');
+
+    useEffect(() => {
+      if (isOpen) {
+        setValue(defaultValue ?? '');
+      }
+    }, [defaultValue, isOpen]);
 
     const onSubmit = useCallback(() => {
       onConfirm?.(value);

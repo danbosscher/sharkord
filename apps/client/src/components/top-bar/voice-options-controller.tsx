@@ -1,9 +1,11 @@
 import {
+  setHideIncomingVideoStreams,
   setHideNonVideoParticipants,
   setHideOwnScreenShare,
   setShowUserBannersInVoice
 } from '@/features/server/voice/actions';
 import {
+  useHideIncomingVideoStreams,
   useHideNonVideoParticipants,
   useHideOwnScreenShare,
   useShowUserBannersInVoice
@@ -22,9 +24,17 @@ import { useTranslation } from 'react-i18next';
 
 const VoiceOptionsController = memo(() => {
   const { t } = useTranslation('topbar');
+  const hideIncomingVideoStreams = useHideIncomingVideoStreams();
   const hideNonVideoParticipants = useHideNonVideoParticipants();
   const showUserBanners = useShowUserBannersInVoice();
   const hideOwnScreenShare = useHideOwnScreenShare();
+
+  const handleToggleHideIncomingVideoStreams = useCallback(
+    (checked: boolean) => {
+      setHideIncomingVideoStreams(checked);
+    },
+    []
+  );
 
   const handleToggleHideNonVideo = useCallback((checked: boolean) => {
     setHideNonVideoParticipants(checked);
@@ -56,6 +66,22 @@ const VoiceOptionsController = memo(() => {
           <h4 className="font-medium text-sm cursor-default mb-3">
             {t('voiceOptions')}
           </h4>
+
+          <div className="flex items-center justify-between space-x-3">
+            <span
+              onClick={() =>
+                handleToggleHideIncomingVideoStreams(!hideIncomingVideoStreams)
+              }
+              className="text-sm text-foreground cursor-pointer select-none flex-1"
+            >
+              {t('hideIncomingVideoStreams')}
+            </span>
+            <Switch
+              id="hide-incoming-video-streams"
+              checked={hideIncomingVideoStreams}
+              onCheckedChange={handleToggleHideIncomingVideoStreams}
+            />
+          </div>
 
           <div className="flex items-center justify-between space-x-3">
             <span

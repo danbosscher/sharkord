@@ -5,6 +5,18 @@ type TEmojiItem = {
   emoji?: string;
 };
 
+const getEmojiItemKey = (emoji: TEmojiItem): string => {
+  if (emoji.fallbackImage) {
+    return `fallback:${emoji.fallbackImage}`;
+  }
+
+  if (emoji.emoji) {
+    return `native:${emoji.emoji}`;
+  }
+
+  return `shortcode:${emoji.shortcodes[0] ?? emoji.name}`;
+};
+
 // checks if the emoji is likely to be rendered as a text presentation emoji, which often look worse and less consistent across platforms than image presentation emojis
 const isTextPresentation = (emoji: string): boolean => {
   const codepoints = [...emoji];
@@ -24,4 +36,9 @@ const isTextPresentation = (emoji: string): boolean => {
 const shouldUseFallbackImage = (emoji: TEmojiItem): boolean =>
   !!emoji.fallbackImage && (!emoji.emoji || isTextPresentation(emoji.emoji));
 
-export { isTextPresentation, shouldUseFallbackImage, type TEmojiItem };
+export {
+  getEmojiItemKey,
+  isTextPresentation,
+  shouldUseFallbackImage,
+  type TEmojiItem
+};

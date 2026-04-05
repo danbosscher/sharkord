@@ -20,7 +20,7 @@ const ParentMessageContent = memo(
     const authorName = useMessageAuthorName(parentMessage);
 
     return (
-      <div className="px-4 py-3 border-b border-border bg-secondary/30 max-h-64 overflow-auto">
+      <div className="px-4 py-3 border-b border-border bg-secondary/30 max-h-[28dvh] sm:max-h-64 overflow-y-auto overscroll-contain">
         <div className="flex items-center gap-2 mb-1">
           {isPluginMessage ? (
             <PluginAvatar
@@ -37,7 +37,7 @@ const ParentMessageContent = memo(
           )}
           <span className="text-sm font-medium">{authorName}</span>
         </div>
-        <div className="text-sm line-clamp-3 opacity-80">
+        <div className="text-sm opacity-80 break-words">
           <MessageRenderer message={parentMessage} />
         </div>
       </div>

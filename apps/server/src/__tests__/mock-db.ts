@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mock } from 'bun:test';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { DRIZZLE_PATH } from '../helpers/paths';
+import path from 'path';
 import { seedDatabase } from './seed';
 
 /**
@@ -22,6 +22,7 @@ import { seedDatabase } from './seed';
  */
 
 let tdb: BunSQLiteDatabase;
+const TEST_MIGRATIONS_PATH = path.resolve(import.meta.dir, '../db/migrations');
 
 const initDb = async () => {
   const sqlite = new Database(':memory:', { create: true, strict: true });
@@ -30,7 +31,7 @@ const initDb = async () => {
 
   tdb = drizzle({ client: sqlite });
 
-  await migrate(tdb, { migrationsFolder: DRIZZLE_PATH });
+  await migrate(tdb, { migrationsFolder: TEST_MIGRATIONS_PATH });
   await seedDatabase(tdb);
 
   return tdb;
@@ -62,4 +63,4 @@ const setTestDb = (newDb: BunSQLiteDatabase) => {
 
 const getTestDb = () => tdb;
 
-export { DRIZZLE_PATH, getTestDb, setTestDb };
+export { TEST_MIGRATIONS_PATH, getTestDb, setTestDb };

@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'fs/promises';
 import path from 'path';
 import { loadMockedPlugins, resetPluginMocks } from '../../__tests__/mocks';
-import { tdb, testsBaseUrl } from '../../__tests__/setup';
+import { tdb, testsBaseUrl } from '../../__tests__/test-context';
 import { settings } from '../../db/schema';
 import { PLUGINS_PATH } from '../../helpers/paths';
 

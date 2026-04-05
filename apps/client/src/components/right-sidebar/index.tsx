@@ -1,6 +1,10 @@
 import { ResizableSidebar } from '@/components/resizable-sidebar';
 import { UserAvatar } from '@/components/user-avatar';
-import { useUsers } from '@/features/server/users/hooks';
+import {
+  useDuplicateRenderedNames,
+  useUsers
+} from '@/features/server/users/hooks';
+import { getUserDisambiguator } from '@/helpers/get-user-disambiguation';
 import { LocalStorageKey } from '@/helpers/storage';
 import { cn } from '@/lib/utils';
 import { DELETED_USER_IDENTITY_AND_NAME } from '@sharkord/shared';
@@ -17,21 +21,29 @@ type TUserProps = {
   userId: number;
   name: string;
   banned: boolean;
+  disambiguator?: string;
 };
 
-const User = memo(({ userId, name, banned }: TUserProps) => {
+const User = memo(({ userId, name, banned, disambiguator }: TUserProps) => {
   return (
     <UserPopover userId={userId}>
       <div className="flex items-center gap-3 rounded px-2 py-1.5 hover:bg-accent select-none min-w-0">
         <UserAvatar userId={userId} className="h-8 w-8 shrink-0" />
-        <span
-          className={cn(
-            'text-sm text-foreground truncate',
-            banned && 'line-through text-muted-foreground'
+        <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              'text-sm text-foreground truncate',
+              banned && 'line-through text-muted-foreground'
+            )}
+          >
+            {name}
+          </div>
+          {disambiguator && (
+            <div className="truncate text-xs text-muted-foreground">
+              {disambiguator}
+            </div>
           )}
-        >
-          {name}
-        </span>
+        </div>
       </div>
     </UserPopover>
   );
@@ -46,6 +58,7 @@ const RightSidebar = memo(
   ({ className, isOpen = true }: TRightSidebarProps) => {
     const { t } = useTranslation('sidebar');
     const users = useUsers();
+    const duplicateRenderedNames = useDuplicateRenderedNames();
 
     const { usersToShow, usersCount } = useMemo(() => {
       const filtered = users.filter(
@@ -83,6 +96,10 @@ const RightSidebar = memo(
                 userId={user.id}
                 name={user.name}
                 banned={user.banned}
+                disambiguator={getUserDisambiguator(
+                  user,
+                  duplicateRenderedNames
+                )}
               />
             ))}
             {hasHiddenUsers && (

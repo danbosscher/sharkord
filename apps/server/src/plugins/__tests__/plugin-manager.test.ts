@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { pluginManager } from '..';
 import { loadMockedPlugins, resetPluginMocks } from '../../__tests__/mocks';
-import { tdb } from '../../__tests__/setup';
+import { tdb } from '../../__tests__/test-context';
 import { messages, pluginData, settings } from '../../db/schema';
 import { PLUGINS_PATH, PUBLIC_PATH, UPLOADS_PATH } from '../../helpers/paths';
 import { fileManager } from '../../utils/file-manager';

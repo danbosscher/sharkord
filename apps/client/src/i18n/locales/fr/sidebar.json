@@ -14,6 +14,8 @@
   "voiceConnected": "Connecté en vocal",
   "voiceFailed": "Échec de la connexion",
   "voiceDisconnected": "Déconnecté",
+  "reconnectVoice": "Reconnecter",
+  "failedReconnectVoice": "Échec de la reconnexion vocale",
   "disconnectVoice": "Se déconnecter",
   "turnOffCamera": "Désactiver la caméra",
   "turnOnCamera": "Activer la caméra",

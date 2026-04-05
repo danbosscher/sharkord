@@ -111,7 +111,7 @@ type TProducerMap = {
 
 type TConsumerMap = {
   [userId: number]: {
-    [remoteId: number]: Consumer<AppData>;
+    [remoteId: number]: Partial<Record<StreamKind, Consumer<AppData>>>;
   };
 };
 
@@ -253,8 +253,10 @@ class VoiceRuntime {
     });
 
     Object.values(this.consumers).forEach((consumers) => {
-      Object.values(consumers).forEach((consumer) => {
-        consumer.close();
+      Object.values(consumers).forEach((remoteConsumers) => {
+        Object.values(remoteConsumers).forEach((consumer) => {
+          consumer?.close();
+        });
       });
     });
 
@@ -317,10 +319,13 @@ class VoiceRuntime {
     this.removeProducer(userId, StreamKind.AUDIO);
     this.removeProducer(userId, StreamKind.VIDEO);
     this.removeProducer(userId, StreamKind.SCREEN);
+    this.removeProducer(userId, StreamKind.SCREEN_AUDIO);
 
     if (this.consumers[userId]) {
-      Object.values(this.consumers[userId]).forEach((consumer) => {
-        consumer.close();
+      Object.values(this.consumers[userId]).forEach((remoteConsumers) => {
+        Object.values(remoteConsumers).forEach((consumer) => {
+          consumer?.close();
+        });
       });
 
       delete this.consumers[userId];
@@ -328,11 +333,14 @@ class VoiceRuntime {
 
     Object.keys(this.consumers).forEach((consumerUserIdStr) => {
       const consumerId = parseInt(consumerUserIdStr);
+      const remoteConsumers = this.consumers[consumerId]?.[userId];
 
-      if (consumerId !== userId && this.consumers[consumerId]?.[userId]) {
-        this.consumers[consumerId][userId].close();
+      if (consumerId !== userId && remoteConsumers) {
+        Object.values(remoteConsumers).forEach((consumer) => {
+          consumer?.close();
+        });
 
-        delete this.consumers[consumerId][userId];
+        delete this.consumers[consumerId]?.[userId];
       }
     });
   };
@@ -390,6 +398,8 @@ class VoiceRuntime {
   };
 
   public createConsumerTransport = async (userId: number) => {
+    this.removeConsumerTransport(userId);
+
     const { transport, params } = await this.createTransport();
 
     this.consumerTransports[userId] = transport;
@@ -398,8 +408,10 @@ class VoiceRuntime {
       delete this.consumerTransports[userId];
 
       if (this.consumers[userId]) {
-        Object.values(this.consumers[userId]).forEach((consumer) => {
-          consumer.close();
+        Object.values(this.consumers[userId]).forEach((remoteConsumers) => {
+          Object.values(remoteConsumers).forEach((consumer) => {
+            consumer?.close();
+          });
         });
 
         delete this.consumers[userId];
@@ -428,6 +440,8 @@ class VoiceRuntime {
   };
 
   public createProducerTransport = async (userId: number) => {
+    this.removeProducerTransport(userId);
+
     const { params, transport } = await this.createTransport();
 
     this.producerTransports[userId] = transport;
@@ -438,6 +452,7 @@ class VoiceRuntime {
       this.removeProducer(userId, StreamKind.AUDIO);
       this.removeProducer(userId, StreamKind.VIDEO);
       this.removeProducer(userId, StreamKind.SCREEN);
+      this.removeProducer(userId, StreamKind.SCREEN_AUDIO);
     });
 
     transport.on('dtlsstatechange', (state) => {
@@ -546,16 +561,31 @@ class VoiceRuntime {
   public addConsumer = (
     userId: number,
     remoteId: number,
+    kind: StreamKind,
     consumer: Consumer<AppData>
   ) => {
     if (!this.consumers[userId]) {
       this.consumers[userId] = {};
     }
 
-    this.consumers[userId][remoteId] = consumer;
+    if (!this.consumers[userId][remoteId]) {
+      this.consumers[userId][remoteId] = {};
+    }
+
+    this.consumers[userId][remoteId][kind] = consumer;
 
     consumer.observer.on('close', () => {
-      delete this.consumers[userId]?.[remoteId];
+      const remoteConsumers = this.consumers[userId]?.[remoteId];
+
+      if (!remoteConsumers) {
+        return;
+      }
+
+      delete remoteConsumers[kind];
+
+      if (Object.keys(remoteConsumers).length === 0) {
+        delete this.consumers[userId]?.[remoteId];
+      }
     });
   };
 
@@ -799,9 +829,9 @@ class VoiceRuntime {
       remoteScreenIds: Object.keys(this.screenProducers)
         .filter((id) => +id !== userId)
         .map((id) => +id),
-      remoteScreenAudioIds: Object.keys(this.screenAudioProducers).map(
-        (id) => +id
-      ),
+      remoteScreenAudioIds: Object.keys(this.screenAudioProducers)
+        .filter((id) => +id !== userId)
+        .map((id) => +id),
       remoteExternalStreamIds: Object.keys(this.externalStreamsInternal).map(
         (id) => +id
       )

@@ -3,6 +3,7 @@ import { useForm } from '@/hooks/use-form';
 import { getTRPCClient } from '@/lib/trpc';
 import {
   DELETED_USER_IDENTITY_AND_NAME,
+  NoiseSuppressionMode,
   parseTrpcErrors,
   Permission,
   STORAGE_DEFAULT_MAX_AVATAR_SIZE,
@@ -49,7 +50,9 @@ export const useAdminGeneral = () => {
     allowNewUsers: false,
     directMessagesEnabled: true,
     enablePlugins: false,
-    enableSearch: true
+    enableSearch: true,
+    defaultEchoCancellation: true,
+    defaultNoiseSuppression: NoiseSuppressionMode.STANDARD
   });
   const [logo, setLogo] = useState<TFile | null>(null);
 
@@ -68,7 +71,10 @@ export const useAdminGeneral = () => {
       allowNewUsers: settings.allowNewUsers ?? false,
       directMessagesEnabled: settings.directMessagesEnabled ?? true,
       enablePlugins: settings.enablePlugins ?? false,
-      enableSearch: settings.enableSearch ?? true
+      enableSearch: settings.enableSearch ?? true,
+      defaultEchoCancellation: settings.defaultEchoCancellation ?? true,
+      defaultNoiseSuppression:
+        settings.defaultNoiseSuppression ?? NoiseSuppressionMode.STANDARD
     });
     setLoading(false);
     setLogo(settings.logo);
@@ -86,7 +92,9 @@ export const useAdminGeneral = () => {
         allowNewUsers: settings.allowNewUsers,
         directMessagesEnabled: settings.directMessagesEnabled,
         enablePlugins: settings.enablePlugins,
-        enableSearch: settings.enableSearch
+        enableSearch: settings.enableSearch,
+        defaultEchoCancellation: settings.defaultEchoCancellation,
+        defaultNoiseSuppression: settings.defaultNoiseSuppression
       });
       toast.success('Settings updated');
     } catch (error) {

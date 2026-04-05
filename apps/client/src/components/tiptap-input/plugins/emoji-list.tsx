@@ -5,7 +5,11 @@ import {
   useImperativeHandle,
   useState
 } from 'react';
-import { shouldUseFallbackImage, type TEmojiItem } from '../helpers';
+import {
+  getEmojiItemKey,
+  shouldUseFallbackImage,
+  type TEmojiItem
+} from '../helpers';
 
 interface EmojiListProps {
   items: TEmojiItem[];
@@ -78,7 +82,7 @@ const EmojiList = forwardRef<EmojiListRef, EmojiListProps>(
       <div className="bg-popover text-popover-foreground border rounded-md shadow-md min-w-[12rem] max-w-[16rem] p-1 z-50">
         {items.map((item, index) => (
           <button
-            key={item.shortcodes[0]}
+            key={getEmojiItemKey(item)}
             className={`w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex items-center gap-2 cursor-default select-none outline-none transition-colors ${
               index === selectedIndex ? 'bg-accent text-accent-foreground' : ''
             }`}

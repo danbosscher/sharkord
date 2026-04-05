@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
-import { tdb } from '../../__tests__/setup';
+import { tdb } from '../../__tests__/test-context';
 import { files, settings } from '../../db/schema';
 import { PUBLIC_PATH, TMP_PATH, UPLOADS_PATH } from '../../helpers/paths';
 import { pluginManager } from '../../plugins';

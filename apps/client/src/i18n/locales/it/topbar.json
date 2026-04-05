@@ -1,10 +1,13 @@
 {
   "closeVoiceChat": "Chiudi chat vocale",
   "openVoiceChat": "Apri chat vocale",
+  "closeChannelsSidebar": "Chiudi barra canali",
+  "openChannelsSidebar": "Apri barra canali",
   "closeMembersSidebar": "Chiudi barra membri",
   "openMembersSidebar": "Apri barra membri",
   "searchContent": "Cerca contenuti...",
   "voiceOptions": "Opzioni vocali",
+  "hideIncomingVideoStreams": "Nascondi i flussi video in ingresso",
   "hideNonVideoParticipants": "Nascondi partecipanti senza video",
   "displayUserBanners": "Mostra banner utente",
   "hideOwnScreenShare": "Nascondi la tua condivisione schermo",

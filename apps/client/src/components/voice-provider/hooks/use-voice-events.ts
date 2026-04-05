@@ -13,6 +13,7 @@ type TEvents = {
     kind: StreamKind,
     routerRtpCapabilities: RtpCapabilities
   ) => Promise<void>;
+  shouldConsumeKind?: (kind: StreamKind, remoteId: number) => boolean;
   removeRemoteUserStream: (
     userId: number,
     kind: TRemoteUserStreamKinds
@@ -28,6 +29,7 @@ type TEvents = {
 
 const useVoiceEvents = ({
   consume,
+  shouldConsumeKind,
   removeRemoteUserStream,
   removeExternalStreamTrack,
   removeExternalStream,
@@ -69,6 +71,15 @@ const useVoiceEvents = ({
             kind,
             channelId
           });
+
+          if (shouldConsumeKind?.(kind, remoteId) === false) {
+            logVoice('Skipping producer consumption due to local preference', {
+              remoteId,
+              kind,
+              channelId
+            });
+            return;
+          }
 
           try {
             consume(remoteId, kind, rtpCapabilities);
@@ -179,6 +190,7 @@ const useVoiceEvents = ({
     currentVoiceChannelId,
     ownUserId,
     consume,
+    shouldConsumeKind,
     removeRemoteUserStream,
     removeExternalStreamTrack,
     removeExternalStream,

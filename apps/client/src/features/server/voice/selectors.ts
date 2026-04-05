@@ -49,6 +49,19 @@ export const voiceChannelVideoExternalStreamsSelector = createCachedSelector(
 export const hideNonVideoParticipantsSelector = (state: IRootState) =>
   state.server.hideNonVideoParticipants;
 
+export const hideIncomingVideoStreamsSelector = (state: IRootState) =>
+  state.server.hideIncomingVideoStreams;
+
+export const enabledIncomingVideoUserIdsSelector = (state: IRootState) =>
+  state.server.enabledIncomingVideoUserIds;
+
+export const enabledIncomingScreenShareUserIdsSelector = (state: IRootState) =>
+  state.server.enabledIncomingScreenShareUserIds;
+
+export const enabledIncomingExternalVideoStreamIdsSelector = (
+  state: IRootState
+) => state.server.enabledIncomingExternalVideoStreamIds;
+
 export const showUserBannersInVoiceSelector = (state: IRootState) =>
   state.server.showUserBannersInVoice;
 

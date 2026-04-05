@@ -1,6 +1,7 @@
 import {
   type TActivityLogDetailsMap,
-  type TMessageMetadata
+  type TMessageMetadata,
+  type NoiseSuppressionMode
 } from '@sharkord/shared';
 import {
   index,
@@ -79,7 +80,16 @@ const settings = sqliteTable(
     }).notNull(),
     storageSignedUrlsTtlSeconds: integer(
       'storage_signed_urls_ttl_seconds'
-    ).notNull()
+    ).notNull(),
+    defaultEchoCancellation: integer('default_echo_cancellation', {
+      mode: 'boolean'
+    })
+      .notNull()
+      .default(true),
+    defaultNoiseSuppression: text('default_noise_suppression')
+      .$type<NoiseSuppressionMode>()
+      .notNull()
+      .default('standard' as unknown as NoiseSuppressionMode)
   },
   (t) => [
     index('settings_server_idx').on(t.serverId),
@@ -160,6 +170,11 @@ const users = sqliteTable(
     banReason: text('ban_reason'),
     bannedAt: integer('banned_at'),
     bannerColor: text('banner_color'),
+    profileSetupCompleted: integer('profile_setup_completed', {
+      mode: 'boolean'
+    })
+      .notNull()
+      .default(false),
     lastLoginAt: integer('last_login_at')
       .notNull()
       .$defaultFn(() => Date.now()),

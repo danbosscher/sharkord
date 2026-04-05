@@ -6,6 +6,10 @@ import { useContext, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useIsOwnUser } from '../users/hooks';
 import {
+  enabledIncomingExternalVideoStreamIdsSelector,
+  enabledIncomingScreenShareUserIdsSelector,
+  enabledIncomingVideoUserIdsSelector,
+  hideIncomingVideoStreamsSelector,
   hideNonVideoParticipantsSelector,
   hideOwnScreenShareSelector,
   ownVoiceStateSelector,
@@ -61,6 +65,18 @@ export const usePinnedCard = () => useSelector(pinnedCardSelector);
 
 export const useHideNonVideoParticipants = () =>
   useSelector(hideNonVideoParticipantsSelector);
+
+export const useHideIncomingVideoStreams = () =>
+  useSelector(hideIncomingVideoStreamsSelector);
+
+export const useEnabledIncomingVideoUserIds = () =>
+  useSelector(enabledIncomingVideoUserIdsSelector);
+
+export const useEnabledIncomingScreenShareUserIds = () =>
+  useSelector(enabledIncomingScreenShareUserIdsSelector);
+
+export const useEnabledIncomingExternalVideoStreamIds = () =>
+  useSelector(enabledIncomingExternalVideoStreamIdsSelector);
 
 export const useShowUserBannersInVoice = () =>
   useSelector(showUserBannersInVoiceSelector);

@@ -1,5 +1,6 @@
 import { closeServerScreens } from '@/features/server-screens/actions';
 import { useAdminGeneral } from '@/features/server/admin/hooks';
+import { NoiseSuppressionMode } from '@sharkord/shared';
 import {
   Button,
   Card,
@@ -10,6 +11,12 @@ import {
   Group,
   Input,
   LoadingCard,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   Textarea
 } from '@sharkord/ui';
@@ -111,6 +118,54 @@ const General = memo(() => {
             checked={settings.enableSearch}
             onCheckedChange={(checked) => onChange('enableSearch', checked)}
           />
+        </Group>
+
+        <Group
+          label={t('defaultVoiceProcessingLabel')}
+          description={t('defaultVoiceProcessingDesc')}
+        >
+          <div className="flex flex-col gap-4">
+            <Group label={t('echoCancellationLabel')}>
+              <Switch
+                checked={settings.defaultEchoCancellation}
+                onCheckedChange={(checked) =>
+                  onChange('defaultEchoCancellation', checked)
+                }
+              />
+            </Group>
+
+            <Group label={t('noiseSuppressionLabel')}>
+              <Select
+                value={settings.defaultNoiseSuppression}
+                onValueChange={(value) =>
+                  onChange(
+                    'defaultNoiseSuppression',
+                    value as NoiseSuppressionMode
+                  )
+                }
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={NoiseSuppressionMode.NONE}>
+                      {t('noiseSuppressionNone')}
+                    </SelectItem>
+                    <SelectItem value={NoiseSuppressionMode.STANDARD}>
+                      {t('noiseSuppressionStandardName')}
+                    </SelectItem>
+                    <SelectItem value={NoiseSuppressionMode.RNNOISE}>
+                      {t('noiseSuppressionRnnoiseName')}
+                    </SelectItem>
+                    <SelectItem value={NoiseSuppressionMode.DTLN}>
+                      {t('noiseSuppressionDtlnName')}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Group>
+          </div>
         </Group>
 
         <div className="flex justify-end gap-2 pt-4">

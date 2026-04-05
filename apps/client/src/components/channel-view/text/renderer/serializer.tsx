@@ -5,6 +5,16 @@ import { MentionOverride } from '../overrides/mention';
 import { TwitterOverride } from '../overrides/twitter';
 import { YoutubeOverride } from '../overrides/youtube';
 import { getTweetInfo, getYoutubeInfo } from './helpers';
+import { renderInlineMarkdown } from './inline-markdown';
+
+const INLINE_MARKDOWN_EXCLUDED_TAGS = new Set([
+  'a',
+  'code',
+  'pre',
+  'strong',
+  'em',
+  'del'
+]);
 
 const serializer = (domNode: DOMNode, messageId: number) => {
   try {
@@ -41,6 +51,22 @@ const serializer = (domNode: DOMNode, messageId: number) => {
 
       if (!Number.isNaN(userId)) {
         return <MentionOverride userId={userId} />;
+      }
+    } else if (domNode.type === 'text' && 'data' in domNode) {
+      const parent = domNode.parent;
+
+      if (
+        parent instanceof Element &&
+        !INLINE_MARKDOWN_EXCLUDED_TAGS.has(parent.name) &&
+        !(
+          parent.name === 'span' &&
+          parent.attribs['data-type'] === 'mention'
+        )
+      ) {
+        return renderInlineMarkdown(
+          domNode.data,
+          `message-${messageId}-inline-markdown`
+        );
       }
     }
   } catch (error) {

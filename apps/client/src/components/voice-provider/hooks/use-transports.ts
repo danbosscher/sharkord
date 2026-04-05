@@ -31,13 +31,30 @@ type TUseTransportParams = {
     streamId: number,
     kind: StreamKind.EXTERNAL_AUDIO | StreamKind.EXTERNAL_VIDEO
   ) => void;
+  onTransportFailed?: (
+    transportType: 'producer' | 'consumer',
+    state: string
+  ) => void;
+  onTransportClosed?: (
+    transportType: 'producer' | 'consumer',
+    state: string
+  ) => void;
+};
+
+type TConsumeExistingProducersOptions = {
+  externalStreamTracks?: {
+    [streamId: number]: { audio?: boolean; video?: boolean };
+  };
+  shouldConsumeKind?: (kind: StreamKind, remoteId: number) => boolean;
 };
 
 const useTransports = ({
   addRemoteUserStream,
   removeRemoteUserStream,
   addExternalStreamTrack,
-  removeExternalStreamTrack
+  removeExternalStreamTrack,
+  onTransportFailed,
+  onTransportClosed
 }: TUseTransportParams) => {
   const producerTransport = useRef<Transport<AppData> | undefined>(undefined);
   const consumerTransport = useRef<Transport<AppData> | undefined>(undefined);
@@ -84,9 +101,11 @@ const useTransports = ({
 
         if (state === 'failed') {
           logVoice(`Producer transport ${state}`);
+          onTransportFailed?.('producer', state);
           producerTransport.current?.close();
         } else if (state === 'closed') {
           logVoice('Producer transport closed');
+          onTransportClosed?.('producer', state);
           producerTransport.current = undefined;
         }
       });
@@ -134,7 +153,7 @@ const useTransports = ({
     } catch (error) {
       logVoice('Error creating producer transport', { error });
     }
-  }, []);
+  }, [onTransportClosed, onTransportFailed]);
 
   const createConsumerTransport = useCallback(async (device: Device) => {
     logVoice('Creating consumer transport', { device });
@@ -171,6 +190,7 @@ const useTransports = ({
 
         if (state === 'failed') {
           logVoice(`Consumer transport ${state}, attempting cleanup`);
+          onTransportFailed?.('consumer', state);
 
           Object.values(consumers.current).forEach((userConsumers) => {
             Object.values(userConsumers).forEach((consumer) => {
@@ -183,6 +203,7 @@ const useTransports = ({
           consumerTransport.current = undefined;
         } else if (state === 'closed') {
           logVoice('Consumer transport closed');
+          onTransportClosed?.('consumer', state);
           consumerTransport.current = undefined;
         }
       });
@@ -193,7 +214,7 @@ const useTransports = ({
     } catch (error) {
       logVoice('Failed to create consumer transport', { error });
     }
-  }, []);
+  }, [onTransportClosed, onTransportFailed]);
 
   const consume = useCallback(
     async (
@@ -331,13 +352,13 @@ const useTransports = ({
   const consumeExistingProducers = useCallback(
     async (
       routerRtpCapabilities: RtpCapabilities,
-      externalStreamTracks?: {
-        [streamId: number]: { audio?: boolean; video?: boolean };
-      }
+      options?: TConsumeExistingProducersOptions
     ) => {
       logVoice('Consuming existing producers', { routerRtpCapabilities });
 
       const trpc = getTRPCClient();
+      const shouldConsumeKind = options?.shouldConsumeKind;
+      const externalStreamTracks = options?.externalStreamTracks;
 
       try {
         const {
@@ -356,28 +377,40 @@ const useTransports = ({
         });
 
         remoteAudioIds.forEach((remoteId) => {
+          if (shouldConsumeKind?.(StreamKind.AUDIO, remoteId) === false) return;
           consume(remoteId, StreamKind.AUDIO, routerRtpCapabilities);
         });
 
         remoteVideoIds.forEach((remoteId) => {
+          if (shouldConsumeKind?.(StreamKind.VIDEO, remoteId) === false) return;
           consume(remoteId, StreamKind.VIDEO, routerRtpCapabilities);
         });
 
         remoteScreenIds.forEach((remoteId) => {
+          if (shouldConsumeKind?.(StreamKind.SCREEN, remoteId) === false)
+            return;
           consume(remoteId, StreamKind.SCREEN, routerRtpCapabilities);
         });
 
         remoteScreenAudioIds.forEach((remoteId) => {
+          if (shouldConsumeKind?.(StreamKind.SCREEN_AUDIO, remoteId) === false)
+            return;
           consume(remoteId, StreamKind.SCREEN_AUDIO, routerRtpCapabilities);
         });
 
         remoteExternalStreamIds.forEach((streamId: number) => {
           const tracks = externalStreamTracks?.[streamId];
 
-          if (tracks?.audio !== false) {
+          if (
+            tracks?.audio !== false &&
+            shouldConsumeKind?.(StreamKind.EXTERNAL_AUDIO, streamId) !== false
+          ) {
             consume(streamId, StreamKind.EXTERNAL_AUDIO, routerRtpCapabilities);
           }
-          if (tracks?.video !== false) {
+          if (
+            tracks?.video !== false &&
+            shouldConsumeKind?.(StreamKind.EXTERNAL_VIDEO, streamId) !== false
+          ) {
             consume(streamId, StreamKind.EXTERNAL_VIDEO, routerRtpCapabilities);
           }
         });
@@ -394,6 +427,53 @@ const useTransports = ({
     },
     []
   );
+
+  const hasConsumer = useCallback((remoteId: number, kind: StreamKind) => {
+    const consumer = consumers.current[remoteId]?.[kind];
+
+    return !!consumer && !consumer.closed;
+  }, []);
+
+  const closeConsumer = useCallback(
+    (remoteId: number, kind: StreamKind) => {
+      const consumer = consumers.current[remoteId]?.[kind];
+
+      if (!consumer || consumer.closed) {
+        if (
+          kind === StreamKind.EXTERNAL_VIDEO ||
+          kind === StreamKind.EXTERNAL_AUDIO
+        ) {
+          removeExternalStreamTrack(remoteId, kind);
+        } else {
+          removeRemoteUserStream(remoteId, kind);
+        }
+
+        return;
+      }
+
+      consumer.close();
+    },
+    [removeExternalStreamTrack, removeRemoteUserStream]
+  );
+
+  const closeConsumersByKinds = useCallback((kinds: StreamKind[]) => {
+    if (kinds.length === 0) return;
+
+    logVoice('Closing consumers by kinds', { kinds });
+
+    Object.entries(consumers.current).forEach(([remoteId, userConsumers]) => {
+      kinds.forEach((kind) => {
+        const consumer = userConsumers[kind];
+
+        if (!consumer || consumer.closed) {
+          return;
+        }
+
+        consumer.close();
+        consumerCodecs.current.delete(`${remoteId}-${kind}`);
+      });
+    });
+  }, []);
 
   const cleanupTransports = useCallback(() => {
     logVoice('Cleaning up transports');
@@ -434,6 +514,9 @@ const useTransports = ({
     createConsumerTransport,
     consume,
     consumeExistingProducers,
+    hasConsumer,
+    closeConsumer,
+    closeConsumersByKinds,
     cleanupTransports,
     getConsumerCodec
   };

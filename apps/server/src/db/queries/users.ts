@@ -22,6 +22,7 @@ const getPublicUserById = async (
     .select({
       id: users.id,
       name: users.name,
+      profileSetupCompleted: users.profileSetupCompleted,
       bannerColor: users.bannerColor,
       bio: users.bio,
       banned: users.banned,
@@ -52,6 +53,7 @@ const getPublicUserById = async (
   return {
     id: results.id,
     name: results.name,
+    profileSetupCompleted: results.profileSetupCompleted,
     bannerColor: results.bannerColor,
     bio: results.bio,
     avatarId: results.avatarId,
@@ -86,6 +88,7 @@ const getPublicUsers = async (
       .select({
         id: users.id,
         name: users.name,
+        profileSetupCompleted: users.profileSetupCompleted,
         bannerColor: users.bannerColor,
         bio: users.bio,
         banned: users.banned,
@@ -121,6 +124,7 @@ const getPublicUsers = async (
     return results.map((result) => ({
       id: result.id,
       name: result.name,
+      profileSetupCompleted: result.profileSetupCompleted,
       bannerColor: result.bannerColor,
       bio: result.bio,
       banned: result.banned,
@@ -145,6 +149,7 @@ const getPublicUsers = async (
       .select({
         id: users.id,
         name: users.name,
+        profileSetupCompleted: users.profileSetupCompleted,
         banned: users.banned,
         bannerColor: users.bannerColor,
         bio: users.bio,
@@ -180,6 +185,7 @@ const getPublicUsers = async (
     return results.map((result) => ({
       id: result.id,
       name: result.name,
+      profileSetupCompleted: result.profileSetupCompleted,
       banned: result.banned,
       bannerColor: result.bannerColor,
       bio: result.bio,
@@ -231,6 +237,7 @@ const getUserById = async (
       id: users.id,
       identity: users.identity,
       name: users.name,
+      profileSetupCompleted: users.profileSetupCompleted,
       avatarId: users.avatarId,
       bannerId: users.bannerId,
       bio: users.bio,
@@ -290,6 +297,7 @@ const getUserByIdentity = async (
       id: users.id,
       identity: users.identity,
       name: users.name,
+      profileSetupCompleted: users.profileSetupCompleted,
       avatarId: users.avatarId,
       bannerId: users.bannerId,
       bio: users.bio,
@@ -362,6 +370,7 @@ const getUsers = async (): Promise<TJoinedUser[]> => {
         .select({
           id: users.id,
           name: users.name,
+          profileSetupCompleted: users.profileSetupCompleted,
           bannerColor: users.bannerColor,
           bio: users.bio,
           avatarId: users.avatarId,
@@ -405,6 +414,7 @@ const getUsers = async (): Promise<TJoinedUser[]> => {
   return results.map((result) => ({
     id: result.id,
     name: result.name,
+    profileSetupCompleted: result.profileSetupCompleted,
     bannerColor: result.bannerColor,
     bio: result.bio,
     avatarId: result.avatarId,

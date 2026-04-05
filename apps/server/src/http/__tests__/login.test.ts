@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { login } from '../../__tests__/helpers';
 import { TEST_SECRET_TOKEN } from '../../__tests__/seed';
-import { tdb } from '../../__tests__/setup';
+import { tdb } from '../../__tests__/test-context';
 import { getChannelsReadStatesForUser } from '../../db/queries/channels';
 import {
   channelReadStates,

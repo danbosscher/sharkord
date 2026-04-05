@@ -4,6 +4,8 @@ import { Video, ZoomIn, ZoomOut } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { CardControls } from './card-controls';
 import { CardGradient } from './card-gradient';
+import { FullscreenButton } from './fullscreen-button';
+import { useElementFullscreen } from './hooks/use-element-fullscreen';
 import { useScreenShareZoom } from './hooks/use-screen-share-zoom';
 import { useVoiceRefs } from './hooks/use-voice-refs';
 import { PinButton } from './pin-button';
@@ -11,21 +13,33 @@ import { PinButton } from './pin-button';
 type TExternalVideoControlsProps = {
   isPinned: boolean;
   isZoomEnabled: boolean;
+  isFullscreen: boolean;
   handlePinToggle: () => void;
   handleToggleZoom: () => void;
+  handleToggleFullscreen: () => void;
   showPinControls: boolean;
+  showFullscreenControl: boolean;
 };
 
 const ExternalVideoControls = memo(
   ({
     isPinned,
     isZoomEnabled,
+    isFullscreen,
     handlePinToggle,
     handleToggleZoom,
-    showPinControls
+    handleToggleFullscreen,
+    showPinControls,
+    showFullscreenControl
   }: TExternalVideoControlsProps) => {
     return (
       <CardControls>
+        {showFullscreenControl && (
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            handleToggleFullscreen={handleToggleFullscreen}
+          />
+        )}
         {showPinControls && isPinned && (
           <IconButton
             variant={isZoomEnabled ? 'default' : 'ghost'}
@@ -79,6 +93,8 @@ const ExternalVideoCard = memo(
       getCursor,
       resetZoom
     } = useScreenShareZoom();
+    const { isFullscreen, isFullscreenSupported, toggleFullscreen } =
+      useElementFullscreen(containerRef);
 
     const handlePinToggle = useCallback(() => {
       if (isPinned) {
@@ -89,16 +105,21 @@ const ExternalVideoCard = memo(
       }
     }, [isPinned, onPin, onUnpin, resetZoom]);
 
+    const handleToggleFullscreen = useCallback(() => {
+      resetZoom();
+      void toggleFullscreen();
+    }, [resetZoom, toggleFullscreen]);
+
     if (!hasExternalVideoStream) return null;
 
     return (
       <div
         ref={containerRef}
         className={cn(
-          'relative bg-card rounded-lg overflow-hidden group',
+          'relative bg-card overflow-hidden group',
           'flex items-center justify-center',
           'w-full h-full',
-          'border border-border',
+          isFullscreen ? 'rounded-none border-0' : 'rounded-lg border border-border',
           className
         )}
         onWheel={handleWheel}
@@ -115,9 +136,12 @@ const ExternalVideoCard = memo(
         <ExternalVideoControls
           isPinned={isPinned}
           isZoomEnabled={isZoomEnabled}
+          isFullscreen={isFullscreen}
           handlePinToggle={handlePinToggle}
           handleToggleZoom={handleToggleZoom}
+          handleToggleFullscreen={handleToggleFullscreen}
           showPinControls={showPinControls}
+          showFullscreenControl={isFullscreenSupported}
         />
 
         <video
@@ -132,7 +156,7 @@ const ExternalVideoCard = memo(
           }}
         />
 
-        <div className="absolute bottom-0 left-0 right-0 p-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-0 left-0 right-0 p-2 z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
           <div className="flex items-center gap-2 min-w-0">
             <Video className="size-3.5 text-blue-400 flex-shrink-0" />
             <span className="text-white font-medium text-xs truncate">

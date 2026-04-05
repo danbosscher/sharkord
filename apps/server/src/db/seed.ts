@@ -1,6 +1,7 @@
 import {
   ChannelType,
   DEFAULT_ROLE_PERMISSIONS,
+  NoiseSuppressionMode,
   OWNER_ROLE_ID,
   Permission,
   sha256,
@@ -67,7 +68,9 @@ const seedDatabase = async () => {
     enablePlugins: false,
     enableSearch: true,
     storageSignedUrlsEnabled: false,
-    storageSignedUrlsTtlSeconds: STORAGE_DEFAULT_SIGNED_URLS_TTL_SECONDS
+    storageSignedUrlsTtlSeconds: STORAGE_DEFAULT_SIGNED_URLS_TTL_SECONDS,
+    defaultEchoCancellation: true,
+    defaultNoiseSuppression: NoiseSuppressionMode.STANDARD
   };
 
   await db.insert(settings).values(initialSettings);
@@ -147,6 +150,7 @@ const seedDatabase = async () => {
       bio: 'Hey, I am Sharkord!',
       bannerColor:
         'linear-gradient(90deg, rgba(67,49,215,1) 30%, rgba(182,1,116,1) 100%)',
+      profileSetupCompleted: true,
       createdAt: firstStart
     }
   ];

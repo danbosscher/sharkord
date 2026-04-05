@@ -5,3 +5,7 @@
 /DockerCenas
 /experiments
 .direnv/
+/data-test
+/apps/client/dist
+/apps/server/build/out
+/apps/server/build/temp

@@ -20,7 +20,7 @@ import {
   userRoles,
   users
 } from '../db/schema';
-import { tdb } from './setup';
+import { tdb } from './test-context';
 
 describe('database cascades', async () => {
   test('initial data is seeded correctly', async () => {

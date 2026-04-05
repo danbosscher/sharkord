@@ -1,5 +1,9 @@
 import { UserAvatar } from '@/components/user-avatar';
 import {
+  getDuplicateRenderedNames,
+  getUserDisambiguator
+} from '@/helpers/get-user-disambiguation';
+import {
   AutoFocus,
   DropdownMenu,
   DropdownMenuContent,
@@ -29,14 +33,15 @@ const SearchUserDropdown = memo(
     onStartDm
   }: TSearchUserDropdownProps) => {
     const { t } = useTranslation('sidebar');
-    const { allUsers, extraUsers } = useMemo(() => {
+    const { allUsers, extraUsers, duplicateRenderedNames } = useMemo(() => {
       const filtered = usersToStartDm.filter((user) =>
         user.name.toLowerCase().includes(query.toLowerCase())
       );
 
       return {
         allUsers: filtered.slice(0, MAX_USERS),
-        extraUsers: filtered.length - MAX_USERS
+        extraUsers: filtered.length - MAX_USERS,
+        duplicateRenderedNames: getDuplicateRenderedNames(filtered)
       };
     }, [usersToStartDm, query]);
 
@@ -70,13 +75,20 @@ const SearchUserDropdown = memo(
           )}
           {allUsers.map((user) => (
             <DropdownMenuItem key={user.id} onClick={() => onStartDm(user.id)}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <UserAvatar
                   userId={user.id}
                   className="h-5 w-5"
                   showUserPopover
                 />
-                <span>{user.name}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate">{user.name}</div>
+                  {getUserDisambiguator(user, duplicateRenderedNames) && (
+                    <div className="truncate text-xs text-muted-foreground">
+                      {getUserDisambiguator(user, duplicateRenderedNames)}
+                    </div>
+                  )}
+                </div>
               </div>
             </DropdownMenuItem>
           ))}

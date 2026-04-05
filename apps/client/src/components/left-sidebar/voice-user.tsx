@@ -1,8 +1,12 @@
 import { UserAvatar } from '@/components/user-avatar';
 import { useStreamVolumeControl } from '@/components/voice-provider/hooks/use-stream-volume-control';
 import type { TVoiceUser } from '@/features/server/types';
-import { useIsOwnUser } from '@/features/server/users/hooks';
+import {
+  useDuplicateRenderedNames,
+  useIsOwnUser
+} from '@/features/server/users/hooks';
 import { useSpeakingState } from '@/features/server/voice/hooks';
+import { getUserDisambiguator } from '@/helpers/get-user-disambiguation';
 import { cn } from '@sharkord/ui';
 import {
   HeadphoneOff,
@@ -25,9 +29,11 @@ type TVoiceUserProps = {
 
 const VoiceUser = memo(({ user, isOwnChannel = false }: TVoiceUserProps) => {
   const isOwnUser = useIsOwnUser(user.id);
+  const duplicateRenderedNames = useDuplicateRenderedNames();
   const { isMuted } = useStreamVolumeControl({ type: 'user', userId: user.id });
   const { isActivelySpeaking, speakingEffectClass } = useSpeakingState(user.id);
   const shouldShowMuteIndicator = isOwnChannel && !isOwnUser && isMuted;
+  const disambiguator = getUserDisambiguator(user, duplicateRenderedNames);
 
   const userRow = (
     <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent/30 text-sm">
@@ -38,9 +44,14 @@ const VoiceUser = memo(({ user, isOwnChannel = false }: TVoiceUserProps) => {
         showStatusBadge={false}
       />
 
-      <span className="flex-1 text-muted-foreground truncate text-xs">
-        {user.name}
-      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs text-muted-foreground">{user.name}</div>
+        {disambiguator && (
+          <div className="truncate text-[10px] text-muted-foreground/80">
+            {disambiguator}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-1 opacity-60">
         {shouldShowMuteIndicator && (

@@ -1,4 +1,7 @@
-import type { TEmojiItem } from '@/components/tiptap-input/helpers';
+import {
+  getEmojiItemKey,
+  type TEmojiItem
+} from '@/components/tiptap-input/helpers';
 import {
   getLocalStorageItemAsJSON,
   LocalStorageKey,
@@ -56,7 +59,7 @@ const saveRecentEmojis = (emojis: TEmojiItem[]): void => {
 const addRecentEmoji = (emoji: TEmojiItem): void => {
   const current = loadRecentEmojis();
 
-  const filtered = current.filter((e) => e.name !== emoji.name);
+  const filtered = current.filter((e) => getEmojiItemKey(e) !== getEmojiItemKey(emoji));
   const updated = [emoji, ...filtered].slice(0, MAX_RECENT_EMOJIS);
 
   saveRecentEmojis(updated);

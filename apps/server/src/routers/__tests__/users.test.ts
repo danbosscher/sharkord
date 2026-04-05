@@ -7,7 +7,7 @@ import {
 import { describe, expect, test } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import { initTest, uploadFile } from '../../__tests__/helpers';
-import { tdb } from '../../__tests__/setup';
+import { tdb } from '../../__tests__/test-context';
 import {
   channels,
   emojis,

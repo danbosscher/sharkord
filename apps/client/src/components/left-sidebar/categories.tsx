@@ -36,9 +36,10 @@ import { useCategoryExpanded } from './hooks';
 
 type TCategoryProps = {
   categoryId: number;
+  onNavigate?: () => void;
 };
 
-const Category = memo(({ categoryId }: TCategoryProps) => {
+const Category = memo(({ categoryId, onNavigate }: TCategoryProps) => {
   const { t } = useTranslation('sidebar');
   const can = useCan();
   const hasVisibleChannelsInCategory =
@@ -110,12 +111,16 @@ const Category = memo(({ categoryId }: TCategoryProps) => {
         </Protect>
       </div>
 
-      {expanded && <Channels categoryId={category.id} />}
+      {expanded && <Channels categoryId={category.id} onNavigate={onNavigate} />}
     </div>
   );
 });
 
-const Categories = memo(() => {
+type TCategoriesProps = {
+  onNavigate?: () => void;
+};
+
+const Categories = memo(({ onNavigate }: TCategoriesProps) => {
   const { t } = useTranslation('sidebar');
   const can = useCan();
   const categories = useCategories();
@@ -176,7 +181,11 @@ const Categories = memo(() => {
           disabled={!can(Permission.MANAGE_CATEGORIES)}
         >
           {categories.map((category) => (
-            <Category key={category.id} categoryId={category.id} />
+            <Category
+              key={category.id}
+              categoryId={category.id}
+              onNavigate={onNavigate}
+            />
           ))}
         </SortableContext>
       </DndContext>

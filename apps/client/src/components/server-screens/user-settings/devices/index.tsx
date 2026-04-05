@@ -14,7 +14,12 @@ import {
   getSuppressLocalAudioPlaybackSupport
 } from '@/helpers/get-display-media-support';
 import { useForm } from '@/hooks/use-form';
-import { NoiseSuppression, Resolution, VideoCodec } from '@/types';
+import {
+  NoiseSuppression,
+  Resolution,
+  VideoCodec,
+  type TDeviceSettings
+} from '@/types';
 import { DEFAULT_BITRATE } from '@sharkord/shared';
 import {
   Alert,
@@ -74,7 +79,7 @@ const Devices = memo(() => {
     videoDevices,
     loadDevices
   } = useDevices();
-  const { values, onChange, setValues } = useForm(devices);
+  const { values, setValues } = useForm(devices);
   const noiseGateWorkletAvailability = useSyncExternalStore(
     subscribeNoiseGateWorkletAvailability,
     getNoiseGateWorkletAvailabilitySnapshot,
@@ -123,10 +128,6 @@ const Devices = memo(() => {
     webcamFramerate: values.webcamFramerate
   });
 
-  const saveDeviceSettings = useCallback(() => {
-    saveDevices(values);
-    toast.success(t('deviceSettingsSaved'));
-  }, [saveDevices, values, t]);
   const didPrimeDevicesOnGrantedRef = useRef(false);
   const mutedByTestRef = useRef<{
     previousMicMuted: boolean;
@@ -250,6 +251,45 @@ const Devices = memo(() => {
     setValues(devices);
   }, [devices, setValues]);
 
+  const commitDeviceSettings = useCallback(
+    async (previousDevices: TDeviceSettings, nextDevices: TDeviceSettings) => {
+      if (!currentVoiceChannelId) {
+        saveDevices(nextDevices);
+        return;
+      }
+
+      const voiceControlsBridge = getVoiceControlsBridge();
+
+      if (!voiceControlsBridge) {
+        toast.error(t('voiceControlsUnavailable'));
+        setValues(previousDevices);
+        return;
+      }
+
+      try {
+        await voiceControlsBridge.applyDeviceSettings(nextDevices);
+        saveDevices(nextDevices);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t('deviceApplyFailed');
+        setValues(previousDevices);
+        toast.error(`${t('deviceApplyFailed')} ${message}`);
+      }
+    },
+    [currentVoiceChannelId, saveDevices, setValues, t]
+  );
+
+  const updateDeviceSettings = useCallback(
+    (patch: Partial<TDeviceSettings>) => {
+      setValues((prev) => {
+        const nextValues = { ...prev, ...patch };
+        void commitDeviceSettings(prev, nextValues);
+        return nextValues;
+      });
+    },
+    [commitDeviceSettings, setValues]
+  );
+
   if (devicesLoading) {
     return <LoadingCard className="h-[600px]" />;
   }
@@ -270,7 +310,9 @@ const Devices = memo(() => {
         <div className="space-y-6">
           <Group label={t('playbackLabel')}>
             <Select
-              onValueChange={(value) => onChange('playbackId', value)}
+              onValueChange={(value) =>
+                updateDeviceSettings({ playbackId: value })
+              }
               value={values.playbackId}
               disabled={playbackDevices.length === 0}
             >
@@ -299,7 +341,9 @@ const Devices = memo(() => {
 
           <Group label={t('microphoneLabel')}>
             <Select
-              onValueChange={(value) => onChange('microphoneId', value)}
+              onValueChange={(value) =>
+                updateDeviceSettings({ microphoneId: value })
+              }
               value={values.microphoneId}
               disabled={inputDevices.length === 0}
             >
@@ -328,7 +372,9 @@ const Devices = memo(() => {
               <Select
                 value={values.noiseSuppression}
                 onValueChange={(value) =>
-                  onChange('noiseSuppression', value as NoiseSuppression)
+                  updateDeviceSettings({
+                    noiseSuppression: value as NoiseSuppression
+                  })
                 }
               >
                 <SelectTrigger className="w-92">
@@ -358,7 +404,7 @@ const Devices = memo(() => {
                 <Switch
                   checked={!!values.echoCancellation}
                   onCheckedChange={(checked) =>
-                    onChange('echoCancellation', checked)
+                    updateDeviceSettings({ echoCancellation: checked })
                   }
                 />
               </Group>
@@ -367,7 +413,7 @@ const Devices = memo(() => {
                 <Switch
                   checked={!!values.autoGainControl}
                   onCheckedChange={(checked) =>
-                    onChange('autoGainControl', checked)
+                    updateDeviceSettings({ autoGainControl: checked })
                   }
                 />
               </Group>
@@ -377,7 +423,7 @@ const Devices = memo(() => {
                   checked={values.noiseGateEnabled}
                   disabled={!isNoiseGateAvailable}
                   onCheckedChange={(checked) =>
-                    onChange('noiseGateEnabled', checked)
+                    updateDeviceSettings({ noiseGateEnabled: checked })
                   }
                 />
               </Group>
@@ -431,7 +477,7 @@ const Devices = memo(() => {
               noiseGateControlsDisabled={!isNoiseGateAvailable}
               noiseGateThresholdDb={values.noiseGateThresholdDb}
               onThresholdChange={(value) =>
-                onChange('noiseGateThresholdDb', value)
+                updateDeviceSettings({ noiseGateThresholdDb: value })
               }
               getAudioLevelSnapshot={getAudioLevelSnapshot}
             />
@@ -453,7 +499,9 @@ const Devices = memo(() => {
           <Group label={t('webcamLabel')}>
             <div className="space-y-4">
               <Select
-                onValueChange={(value) => onChange('webcamId', value)}
+                onValueChange={(value) =>
+                  updateDeviceSettings({ webcamId: value })
+                }
                 value={values.webcamId}
               >
                 <SelectTrigger className="w-full max-w-96">
@@ -531,10 +579,12 @@ const Devices = memo(() => {
                 framerate={values.webcamFramerate}
                 resolution={values.webcamResolution}
                 onFramerateChange={(value) =>
-                  onChange('webcamFramerate', value)
+                  updateDeviceSettings({ webcamFramerate: value })
                 }
                 onResolutionChange={(value) =>
-                  onChange('webcamResolution', value as Resolution)
+                  updateDeviceSettings({
+                    webcamResolution: value as Resolution
+                  })
                 }
               />
 
@@ -542,7 +592,7 @@ const Devices = memo(() => {
                 <Switch
                   checked={!!values.mirrorOwnVideo}
                   onCheckedChange={(checked) =>
-                    onChange('mirrorOwnVideo', checked)
+                    updateDeviceSettings({ mirrorOwnVideo: checked })
                   }
                 />
               </Group>
@@ -553,10 +603,12 @@ const Devices = memo(() => {
                     framerate={values.screenFramerate}
                     resolution={values.screenResolution}
                     onFramerateChange={(value) =>
-                      onChange('screenFramerate', value)
+                      updateDeviceSettings({ screenFramerate: value })
                     }
                     onResolutionChange={(value) =>
-                      onChange('screenResolution', value as Resolution)
+                      updateDeviceSettings({
+                        screenResolution: value as Resolution
+                      })
                     }
                   />
 
@@ -564,7 +616,9 @@ const Devices = memo(() => {
                     <Select
                       value={values.screenCodec ?? VideoCodec.AUTO}
                       onValueChange={(value) =>
-                        onChange('screenCodec', value as VideoCodec)
+                        updateDeviceSettings({
+                          screenCodec: value as VideoCodec
+                        })
                       }
                     >
                       <SelectTrigger className="w-40">
@@ -595,7 +649,7 @@ const Devices = memo(() => {
                     step={100}
                     value={[values.screenBitrate ?? DEFAULT_BITRATE]}
                     onValueChange={([value]) =>
-                      onChange('screenBitrate', value)
+                      updateDeviceSettings({ screenBitrate: value })
                     }
                     rightSlot={
                       <span className="text-sm text-muted-foreground w-20 text-right">
@@ -612,6 +666,18 @@ const Devices = memo(() => {
                 </div>
 
                 <Group
+                  label={t('shareSystemAudioLabel')}
+                  description={t('shareSystemAudioDesc')}
+                >
+                  <Switch
+                    checked={values.shareSystemAudio !== false}
+                    onCheckedChange={(checked) =>
+                      updateDeviceSettings({ shareSystemAudio: checked })
+                    }
+                  />
+                </Group>
+
+                <Group
                   label={t('restrictOwnAudioLabel')}
                   description={t('restrictOwnAudioDesc')}
                 >
@@ -620,7 +686,7 @@ const Devices = memo(() => {
                       checked={!!values.restrictOwnAudio}
                       disabled={!isRestrictOwnAudioSupported}
                       onCheckedChange={(checked) =>
-                        onChange('restrictOwnAudio', checked)
+                        updateDeviceSettings({ restrictOwnAudio: checked })
                       }
                     />
                   ) : (
@@ -639,7 +705,9 @@ const Devices = memo(() => {
                       checked={!!values.suppressLocalAudioPlayback}
                       disabled={!isSuppressLocalAudioPlaybackSupported}
                       onCheckedChange={(checked) =>
-                        onChange('suppressLocalAudioPlayback', checked)
+                        updateDeviceSettings({
+                          suppressLocalAudioPlayback: checked
+                        })
                       }
                     />
                   ) : (
@@ -658,9 +726,8 @@ const Devices = memo(() => {
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={closeServerScreens}>
-            {t('cancel')}
+            {t('close')}
           </Button>
-          <Button onClick={saveDeviceSettings}>{t('saveChanges')}</Button>
         </div>
       </CardContent>
     </Card>

@@ -165,21 +165,7 @@ const useVoiceControls = ({
 
     try {
       if (newState) {
-        const video = await startScreenShareStream();
-
-        // handle native screen share end
-        video.onended = async () => {
-          stopScreenShareStream();
-          updateOwnVoiceState({ sharingScreen: false });
-
-          try {
-            await trpc.voice.updateState.mutate({
-              sharingScreen: false
-            });
-          } catch {
-            // ignore
-          }
-        };
+        await startScreenShareStream();
       } else {
         stopScreenShareStream();
       }

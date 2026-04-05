@@ -11,6 +11,7 @@ const emojiSelectFields = {
   user: {
     id: users.id,
     name: users.name,
+    profileSetupCompleted: users.profileSetupCompleted,
     bannerColor: users.bannerColor,
     bio: users.bio,
     createdAt: users.createdAt,

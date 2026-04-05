@@ -3,7 +3,7 @@ import path from 'path';
 import { pluginData, settings } from '../../db/schema';
 import { PLUGINS_PATH } from '../../helpers/paths';
 import { pluginManager } from '../../plugins';
-import { tdb } from '../setup';
+import { tdb } from '../test-context';
 
 const loadMockedPlugins = async () => {
   // ensure plugins directory exists

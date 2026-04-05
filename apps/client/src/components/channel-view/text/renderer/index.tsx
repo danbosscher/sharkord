@@ -6,6 +6,8 @@ import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import {
+  FileCategory,
+  getFileCategory,
   imageExtensions,
   isEmojiOnlyMessage,
   type TJoinedMessage
@@ -109,6 +111,20 @@ const MessageRenderer = memo(
       return [...mediaFromFiles, ...mediaFromMetadata];
     }, [message.files, message.metadata]);
 
+    const inlineFileMedia = useMemo(
+      () =>
+        message.files
+          .map((file) => ({
+            file,
+            category: getFileCategory(file.extension)
+          }))
+          .filter(
+            ({ category }) =>
+              category === FileCategory.VIDEO || category === FileCategory.AUDIO
+          ),
+      [message.files]
+    );
+
     return (
       <div className="flex flex-col gap-1">
         <div
@@ -152,6 +168,34 @@ const MessageRenderer = memo(
 
           return null;
         })}
+
+        {!disableFiles &&
+          inlineFileMedia.map(({ file, category }) => {
+            const fileUrl = getFileUrl(file);
+
+            return (
+              <div
+                key={`inline-media-${file.id}`}
+                className="flex flex-col gap-2 max-w-full"
+              >
+                {category === FileCategory.VIDEO ? (
+                  <video
+                    controls
+                    preload="metadata"
+                    className="max-w-full max-h-[480px] rounded-lg border border-border bg-black"
+                    src={fileUrl}
+                  />
+                ) : (
+                  <audio
+                    controls
+                    preload="metadata"
+                    className="w-full max-w-md"
+                    src={fileUrl}
+                  />
+                )}
+              </div>
+            );
+          })}
 
         {!disableReactions && (
           <MessageReactions

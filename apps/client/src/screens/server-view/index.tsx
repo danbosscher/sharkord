@@ -2,11 +2,20 @@ import { LeftSidebar } from '@/components/left-sidebar';
 import { ModViewSheet } from '@/components/mod-view-sheet';
 import { Protect } from '@/components/protect';
 import { RightSidebar } from '@/components/right-sidebar';
+import { UserOnboarding } from '@/components/server-screens/user-onboarding';
 import { ThreadSidebar } from '@/components/thread-sidebar';
 import { TopBar } from '@/components/top-bar';
 import { VoiceChatSidebar } from '@/components/voice-chat-sidebar';
 import { VoiceProvider } from '@/components/voice-provider';
-import { useSelectedDmChannelId, useThreadSidebar } from '@/features/app/hooks';
+import {
+  closeThreadSidebar,
+  closeVoiceChatSidebar
+} from '@/features/app/actions';
+import {
+  useSelectedDmChannelId,
+  useThreadSidebar,
+  useVoiceChatSidebar
+} from '@/features/app/hooks';
 import { setDmsOpen } from '@/features/server/actions';
 import { setSelectedChannelId } from '@/features/server/channels/actions';
 import { useDmsOpen, usePublicServerSettings } from '@/features/server/hooks';
@@ -29,6 +38,18 @@ const ServerView = memo(() => {
   const publicSettings = usePublicServerSettings();
   const previousServerChannelIdRef = useRef<number | undefined>(undefined);
   const { isOpen: isThreadSidebarOpen } = useThreadSidebar();
+  const { isOpen: isVoiceChatSidebarOpen } = useVoiceChatSidebar();
+
+  const closeMobileNavigationOverlays = useCallback(() => {
+    setIsMobileMenuOpen(false);
+    setIsMobileUsersOpen(false);
+    closeThreadSidebar();
+  }, []);
+
+  const closeAllMobileOverlays = useCallback(() => {
+    closeMobileNavigationOverlays();
+    closeVoiceChatSidebar();
+  }, [closeMobileNavigationOverlays]);
 
   const handleDesktopRightSidebarToggle = useCallback(() => {
     setIsDesktopRightSidebarOpen((prev) => !prev);
@@ -38,31 +59,81 @@ const ServerView = memo(() => {
     );
   }, [isDesktopRightSidebarOpen]);
 
+  const handleMobileMenuToggle = useCallback(() => {
+    closeAllMobileOverlays();
+    setIsMobileMenuOpen((prev) => !prev);
+  }, [closeAllMobileOverlays]);
+
+  const handleMobileUsersToggle = useCallback(() => {
+    closeAllMobileOverlays();
+    setIsMobileUsersOpen((prev) => !prev);
+  }, [closeAllMobileOverlays]);
+
+  const handleMobileNavigation = useCallback(() => {
+    closeAllMobileOverlays();
+  }, [closeAllMobileOverlays]);
+
   const handleSwipeRight = useCallback(() => {
     if (isMobileMenuOpen || isMobileUsersOpen) {
-      setIsMobileMenuOpen(false);
-      setIsMobileUsersOpen(false);
+      closeAllMobileOverlays();
       return;
     }
 
+    closeAllMobileOverlays();
     setIsMobileMenuOpen(true);
-  }, [isMobileMenuOpen, isMobileUsersOpen]);
+  }, [closeAllMobileOverlays, isMobileMenuOpen, isMobileUsersOpen]);
 
   const handleSwipeLeft = useCallback(() => {
     if (isMobileMenuOpen || isMobileUsersOpen) {
-      setIsMobileMenuOpen(false);
-      setIsMobileUsersOpen(false);
+      closeAllMobileOverlays();
 
       return;
     }
 
+    closeAllMobileOverlays();
     setIsMobileUsersOpen(true);
-  }, [isMobileMenuOpen, isMobileUsersOpen]);
+  }, [closeAllMobileOverlays, isMobileMenuOpen, isMobileUsersOpen]);
 
   const swipeHandlers = useSwipeGestures({
     onSwipeRight: handleSwipeRight,
     onSwipeLeft: handleSwipeLeft
   });
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeAllMobileOverlays();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeAllMobileOverlays]);
+
+  useEffect(() => {
+    const shouldLockScroll =
+      isMobileMenuOpen ||
+      isMobileUsersOpen ||
+      isVoiceChatSidebarOpen ||
+      isThreadSidebarOpen;
+
+    if (!shouldLockScroll) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [
+    isMobileMenuOpen,
+    isMobileUsersOpen,
+    isThreadSidebarOpen,
+    isVoiceChatSidebarOpen
+  ]);
 
   useEffect(() => {
     if (publicSettings?.directMessagesEnabled === false && dmsOpen) {
@@ -82,8 +153,13 @@ const ServerView = memo(() => {
         {...swipeHandlers}
       >
         <TopBar
-          onToggleRightSidebar={handleDesktopRightSidebarToggle}
-          isOpen={isDesktopRightSidebarOpen}
+          onToggleDesktopRightSidebar={handleDesktopRightSidebarToggle}
+          isDesktopRightSidebarOpen={isDesktopRightSidebarOpen}
+          onToggleMobileLeftSidebar={handleMobileMenuToggle}
+          isMobileLeftSidebarOpen={isMobileMenuOpen}
+          onToggleMobileRightSidebar={handleMobileUsersToggle}
+          isMobileRightSidebarOpen={isMobileUsersOpen}
+          onCloseMobileNavigationOverlays={closeMobileNavigationOverlays}
         />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <PreventBrowser />
@@ -91,14 +167,14 @@ const ServerView = memo(() => {
           {isMobileMenuOpen && (
             <div
               className="md:hidden fixed inset-0 bg-black/50 z-30"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={closeAllMobileOverlays}
             />
           )}
 
           {isMobileUsersOpen && (
             <div
               className="lg:hidden fixed inset-0 bg-black/50 z-30"
-              onClick={() => setIsMobileUsersOpen(false)}
+              onClick={closeAllMobileOverlays}
             />
           )}
 
@@ -109,11 +185,14 @@ const ServerView = memo(() => {
                 ? 'translate-x-0'
                 : '-translate-x-full md:translate-x-0'
             )}
+            onNavigate={handleMobileNavigation}
           />
 
           <ContentWrapper
             isDmMode={dmsOpen}
             selectedDmChannelId={selectedDmChannelId}
+            onOpenChannels={handleMobileMenuToggle}
+            onOpenMembers={handleMobileUsersToggle}
           />
 
           <VoiceChatSidebar />
@@ -134,6 +213,8 @@ const ServerView = memo(() => {
           <Protect permission={Permission.MANAGE_USERS}>
             <ModViewSheet />
           </Protect>
+
+          <UserOnboarding />
         </div>
       </div>
     </VoiceProvider>

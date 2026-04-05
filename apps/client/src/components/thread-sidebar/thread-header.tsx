@@ -1,5 +1,5 @@
 import { closeThreadSidebar } from '@/features/app/actions';
-import { IconButton } from '@sharkord/ui';
+import { Button } from '@sharkord/ui';
 import { MessageSquareText, X } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,13 +13,15 @@ const ThreadHeader = memo(() => {
         <MessageSquareText className="h-4 w-4 text-muted-foreground" />
         <span className="font-semibold text-sm">{t('thread')}</span>
       </div>
-      <IconButton
+      <Button
         onClick={closeThreadSidebar}
-        icon={X}
         variant="ghost"
         size="sm"
-        className="rounded-md hover:bg-accent transition-colors"
-      />
+        className="h-9 gap-2 rounded-md px-3 hover:bg-accent transition-colors"
+      >
+        <X className="h-4 w-4" />
+        <span className="text-sm">{t('close')}</span>
+      </Button>
     </div>
   );
 });

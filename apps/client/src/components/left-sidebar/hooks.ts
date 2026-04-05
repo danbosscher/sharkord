@@ -4,7 +4,7 @@ import {
   useChannelsMap,
   useCurrentVoiceChannelId
 } from '@/features/server/channels/hooks';
-import { joinVoice } from '@/features/server/voice/actions';
+import { joinVoice, leaveVoice } from '@/features/server/voice/actions';
 import { useVoice } from '@/features/server/voice/hooks';
 import { getLocalStorageItemAsJSON, LocalStorageKey } from '@/helpers/storage';
 import { ChannelType } from '@sharkord/shared';
@@ -56,7 +56,7 @@ const useCategoryExpanded = (categoryId: number) => {
   );
 };
 
-const useSelectChannel = () => {
+const useSelectChannel = (onChannelSelected?: () => void) => {
   const { init } = useVoice();
   const currentVoiceChannelId = useCurrentVoiceChannelId();
   const autoJoinLastChannel = useAutoJoinLastChannel();
@@ -76,6 +76,8 @@ const useSelectChannel = () => {
           LocalStorageKey.LAST_SELECTED_CHANNEL,
           channel.id.toString()
         );
+
+        onChannelSelected?.();
       }
 
       if (
@@ -94,13 +96,22 @@ const useSelectChannel = () => {
 
         try {
           await init(response, channel.id);
+          onChannelSelected?.();
         } catch {
+          await leaveVoice({ reason: 'unknown' });
           setSelectedChannelId(undefined);
           toast.error('Failed to initialize voice connection');
         }
       }
+
+      if (
+        channel.type === ChannelType.VOICE &&
+        currentVoiceChannelId === channel.id
+      ) {
+        onChannelSelected?.();
+      }
     },
-    [channelsMap, currentVoiceChannelId, init]
+    [channelsMap, currentVoiceChannelId, init, onChannelSelected]
   );
 
   useEffect(() => {

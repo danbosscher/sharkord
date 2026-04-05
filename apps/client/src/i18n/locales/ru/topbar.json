@@ -1,10 +1,13 @@
 {
   "closeVoiceChat": "Закрыть голосовой чат",
   "openVoiceChat": "Открыть голосовой чат",
+  "closeChannelsSidebar": "Закрыть боковую панель каналов",
+  "openChannelsSidebar": "Открыть боковую панель каналов",
   "closeMembersSidebar": "Закрыть боковую панель участников",
   "openMembersSidebar": "Открыть боковую панель участников",
   "searchContent": "Поиск по содержимому...",
   "voiceOptions": "Опции голосового управления",
+  "hideIncomingVideoStreams": "Скрыть входящие видеопотоки",
   "hideNonVideoParticipants": "Скрыть участников без видео",
   "displayUserBanners": "Показывать баннеры пользователей",
   "audioControls": "Управление аудио",

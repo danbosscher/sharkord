@@ -15,7 +15,6 @@ import {
   ChannelPermission,
   TYPING_MS,
   getTrpcError,
-  prepareMessageHtml,
   type TJoinedMessage
 } from '@sharkord/shared';
 import { Spinner } from '@sharkord/ui';
@@ -33,6 +32,7 @@ import {
   getDraftMessage,
   setDraftMessage
 } from './use-draft-messages';
+import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 
 type TChannelProps = {
   channelId: number;
@@ -116,7 +116,7 @@ const TextChannel = memo(({ channelId, onClose }: TChannelProps) => {
 
       try {
         await trpc.messages.send.mutate({
-          content: prepareMessageHtml(message),
+          content: prepareMarkdownMessageHtml(message),
           channelId,
           files: files.map((f) => f.id),
           replyToMessageId: replyingToMessage?.id

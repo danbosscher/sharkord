@@ -22,9 +22,10 @@ const DEFAULT_WIDTH = 288; // w-72 = 288px
 
 type TLeftSidebarProps = {
   className?: string;
+  onNavigate?: () => void;
 };
 
-const LeftSidebar = memo(({ className }: TLeftSidebarProps) => {
+const LeftSidebar = memo(({ className, onNavigate }: TLeftSidebarProps) => {
   const serverName = useServerName();
   const dmsOpen = useDmsOpen();
   const publicSettings = usePublicServerSettings();
@@ -41,7 +42,10 @@ const LeftSidebar = memo(({ className }: TLeftSidebarProps) => {
       <div className="flex w-full justify-between h-12 items-center border-b border-border px-4">
         <h2
           className="font-semibold text-foreground truncate cursor-pointer"
-          onClick={() => setSelectedChannelId(undefined)}
+          onClick={() => {
+            setSelectedChannelId(undefined);
+            onNavigate?.();
+          }}
         >
           {serverName}
         </h2>
@@ -49,10 +53,14 @@ const LeftSidebar = memo(({ className }: TLeftSidebarProps) => {
           <ServerDropdownMenu />
         </div>
       </div>
-      {publicSettings?.directMessagesEnabled && <DmButton />}
+      {publicSettings?.directMessagesEnabled && <DmButton onNavigate={onNavigate} />}
       <PluginButtons />
       <div className="flex-1 overflow-y-auto">
-        {dmsOpen ? <DirectMessages /> : <Categories />}
+        {dmsOpen ? (
+          <DirectMessages onNavigate={onNavigate} />
+        ) : (
+          <Categories onNavigate={onNavigate} />
+        )}
       </div>
       <VoiceControl />
       <UserControl />

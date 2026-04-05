@@ -1,10 +1,13 @@
 {
   "closeVoiceChat": "Fermer le chat vocal",
   "openVoiceChat": "Ouvrir le chat vocal",
+  "closeChannelsSidebar": "Fermer le panneau des canaux",
+  "openChannelsSidebar": "Ouvrir le panneau des canaux",
   "closeMembersSidebar": "Fermer le panneau latéral des membres",
   "openMembersSidebar": "Ouvrir le panneau latéral des membres",
   "searchContent": "Recherche de contenu...",
   "voiceOptions": "Options vocales",
+  "hideIncomingVideoStreams": "Masquer les flux video entrants",
   "hideNonVideoParticipants": "Masquer les participants non-vidéo",
   "displayUserBanners": "Afficher les bannières des utilisateurs",
   "audioControls": "Contrôle Audio",

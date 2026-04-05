@@ -67,6 +67,7 @@ export const requestTextInput = async ({
   cancelLabel,
   type = 'text',
   allowEmpty = false,
+  defaultValue,
   autoClose = true
 }: {
   title?: string;
@@ -75,6 +76,7 @@ export const requestTextInput = async ({
   confirmLabel?: string;
   cancelLabel?: string;
   allowEmpty?: boolean;
+  defaultValue?: string;
   autoClose?: boolean;
 }): Promise<string | undefined | null> => {
   return new Promise((resolve) => {
@@ -84,6 +86,7 @@ export const requestTextInput = async ({
       confirmLabel,
       cancelLabel,
       allowEmpty,
+      defaultValue,
       type,
       onConfirm: (text: string) => {
         if (autoClose) {

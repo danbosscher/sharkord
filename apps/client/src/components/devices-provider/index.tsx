@@ -1,4 +1,5 @@
 import { MICROPHONE_GATE_DEFAULT_THRESHOLD_DB } from '@/helpers/audio-gate';
+import { usePublicServerSettings } from '@/features/server/hooks';
 import { getRestrictOwnAudioSupport } from '@/helpers/get-display-media-support';
 import {
   getLocalStorageItemAsJSON,
@@ -22,14 +23,37 @@ import {
   useState
 } from 'react';
 
-const getDefaultDeviceSettings = (): TDeviceSettings => ({
+const mapDefaultNoiseSuppression = (
+  mode: string | undefined
+): NoiseSuppression => {
+  switch (mode) {
+    case NoiseSuppression.NONE:
+      return NoiseSuppression.NONE;
+    case NoiseSuppression.RNNOISE:
+      return NoiseSuppression.RNNOISE;
+    case NoiseSuppression.DTLN:
+      return NoiseSuppression.DTLN;
+    case NoiseSuppression.STANDARD:
+    default:
+      return NoiseSuppression.STANDARD;
+  }
+};
+
+const getDefaultDeviceSettings = (
+  serverDefaults?: {
+    defaultEchoCancellation?: boolean;
+    defaultNoiseSuppression?: string;
+  }
+): TDeviceSettings => ({
   microphoneId: undefined,
   playbackId: undefined,
   webcamId: undefined,
   webcamResolution: Resolution['720p'],
   webcamFramerate: 30,
-  echoCancellation: false,
-  noiseSuppression: NoiseSuppression.NONE,
+  echoCancellation: serverDefaults?.defaultEchoCancellation ?? true,
+  noiseSuppression: mapDefaultNoiseSuppression(
+    serverDefaults?.defaultNoiseSuppression
+  ),
   autoGainControl: true,
   noiseGateEnabled: false,
   noiseGateThresholdDb: MICROPHONE_GATE_DEFAULT_THRESHOLD_DB,
@@ -116,6 +140,7 @@ type TDevicesProviderProps = {
 };
 
 const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
+  const publicSettings = usePublicServerSettings();
   const [loading, setLoading] = useState(true);
   const [devices, setDevices] = useState<TDeviceSettings>(() =>
     getDefaultDeviceSettings()
@@ -131,6 +156,7 @@ const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
   >([]);
   const [devicesEnumerated, setDevicesEnumerated] = useState(false);
   const initializedRef = useRef(false);
+  const hadSavedSettingsRef = useRef(false);
   const devicesRef = useRef(devices);
   devicesRef.current = devices;
 
@@ -205,7 +231,8 @@ const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
       const savedSettings = getLocalStorageItemAsJSON<TDeviceSettings>(
         LocalStorageKey.DEVICES_SETTINGS
       );
-      const defaultDeviceSettings = getDefaultDeviceSettings();
+      hadSavedSettingsRef.current = !!savedSettings;
+      const defaultDeviceSettings = getDefaultDeviceSettings(publicSettings);
 
       let base: TDeviceSettings;
 
@@ -244,7 +271,9 @@ const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
       };
 
       setDevices(resolved);
-      setLocalStorageItemAsJSON(LocalStorageKey.DEVICES_SETTINGS, resolved);
+      if (savedSettings || publicSettings) {
+        setLocalStorageItemAsJSON(LocalStorageKey.DEVICES_SETTINGS, resolved);
+      }
       setLoading(false);
 
       return;
@@ -267,7 +296,42 @@ const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
 
     setDevices(updated);
     setLocalStorageItemAsJSON(LocalStorageKey.DEVICES_SETTINGS, updated);
-  }, [devicesEnumerated, inputDevices, playbackDevices, videoDevices]);
+  }, [
+    devicesEnumerated,
+    inputDevices,
+    playbackDevices,
+    publicSettings,
+    videoDevices
+  ]);
+
+  useEffect(() => {
+    if (!initializedRef.current || hadSavedSettingsRef.current || !publicSettings) {
+      return;
+    }
+
+    const savedSettings = getLocalStorageItemAsJSON<TDeviceSettings>(
+      LocalStorageKey.DEVICES_SETTINGS
+    );
+
+    if (savedSettings) {
+      hadSavedSettingsRef.current = true;
+
+      return;
+    }
+
+    const updated = {
+      ...devicesRef.current,
+      echoCancellation:
+        publicSettings.defaultEchoCancellation ??
+        devicesRef.current.echoCancellation,
+      noiseSuppression: mapDefaultNoiseSuppression(
+        publicSettings.defaultNoiseSuppression
+      )
+    };
+
+    setDevices(updated);
+    setLocalStorageItemAsJSON(LocalStorageKey.DEVICES_SETTINGS, updated);
+  }, [publicSettings]);
 
   const contextValue = useMemo<TDevicesProvider>(
     () => ({

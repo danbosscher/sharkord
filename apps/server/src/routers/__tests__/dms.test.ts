@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { initTest } from '../../__tests__/helpers';
-import { tdb } from '../../__tests__/setup';
+import { tdb } from '../../__tests__/test-context';
 import { settings } from '../../db/schema';
 
 describe('dms router', () => {

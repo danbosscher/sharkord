@@ -14,6 +14,8 @@
   "voiceConnected": "Голосовое соединение",
   "voiceFailed": "Соединение не удалось",
   "voiceDisconnected": "Отключено",
+  "reconnectVoice": "Переподключить",
+  "failedReconnectVoice": "Не удалось переподключить голос",
   "disconnectVoice": "Отключиться",
   "turnOffCamera": "Выключить камеру",
   "turnOnCamera": "Включить камеру",

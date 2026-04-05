@@ -14,6 +14,8 @@
   "voiceConnected": "语音已连接",
   "voiceFailed": "连接失败",
   "voiceDisconnected": "已断开",
+  "reconnectVoice": "重新连接",
+  "failedReconnectVoice": "语音重连失败",
   "disconnectVoice": "断开连接",
   "turnOffCamera": "关闭摄像头",
   "turnOnCamera": "开启摄像头",

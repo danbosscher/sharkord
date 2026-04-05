@@ -1,6 +1,6 @@
 import { useCurrentVoiceChannelId } from '@/features/server/channels/hooks';
 import { useChannelCan } from '@/features/server/hooks';
-import { leaveVoice } from '@/features/server/voice/actions';
+import { joinVoice, leaveVoice } from '@/features/server/voice/actions';
 import { useVoice } from '@/features/server/voice/hooks';
 import { cn } from '@/lib/utils';
 import { ChannelPermission } from '@sharkord/shared';
@@ -11,13 +11,15 @@ import {
   Monitor,
   MonitorOff,
   PhoneOff,
+  RefreshCw,
   Video,
   VideoOff,
   Wifi,
   WifiOff
 } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { ExternalAudioStreams } from '../channel-view/voice/external-audio-streams';
 import { VoiceAudioStreams } from '../channel-view/voice/voice-audio-streams';
 import { StatsPopover } from './stats-popover';
@@ -30,7 +32,9 @@ const VoiceControl = memo(() => {
     ownVoiceState,
     toggleWebcam,
     toggleScreenShare,
+    init,
     connectionStatus,
+    loading,
     isScreenShareSupported
   } = useVoice();
 
@@ -64,6 +68,25 @@ const VoiceControl = memo(() => {
     }
   }, [connectionStatus, t]);
 
+  const handleReconnectVoice = useCallback(async () => {
+    if (!voiceChannelId) return;
+
+    const response = await joinVoice(voiceChannelId, { force: true });
+
+    if (!response) {
+      return;
+    }
+
+    try {
+      await init(response, voiceChannelId, {
+        restoreOwnMediaState: true
+      });
+    } catch {
+      await leaveVoice({ reason: 'unknown' });
+      toast.error(t('failedReconnectVoice'));
+    }
+  }, [init, t, voiceChannelId]);
+
   if (!voiceChannelId) {
     return null;
   }
@@ -83,14 +106,31 @@ const VoiceControl = memo(() => {
         </StatsPopover>
 
         <div className="flex items-center justify-between px-2 py-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => leaveVoice({ reason: 'user_disconnect_button' })}
-          >
-            <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
-            {t('disconnectVoice')}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {(connectionStatus === 'failed' ||
+              connectionStatus === 'disconnected') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReconnectVoice}
+                disabled={loading}
+              >
+                <RefreshCw
+                  className={cn('mr-1.5 h-3.5 w-3.5', loading && 'animate-spin')}
+                />
+                {t('reconnectVoice')}
+              </Button>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => leaveVoice({ reason: 'user_disconnect_button' })}
+            >
+              <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
+              {t('disconnectVoice')}
+            </Button>
+          </div>
 
           <div className="flex gap-1">
             <Button

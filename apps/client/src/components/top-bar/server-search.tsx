@@ -1,10 +1,15 @@
 import { openDialog } from '@/features/dialogs/actions';
+import { Button, Tooltip } from '@sharkord/ui';
 import { Search } from 'lucide-react';
 import { memo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '../dialogs/dialogs';
 
-const ServerSearch = memo(() => {
+type TServerSearchProps = {
+  compact?: boolean;
+};
+
+const ServerSearch = memo(({ compact = false }: TServerSearchProps) => {
   const { t } = useTranslation('topbar');
   const openSearchDialog = useCallback(() => {
     openDialog(Dialog.SEARCH);
@@ -22,6 +27,22 @@ const ServerSearch = memo(() => {
 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [openSearchDialog]);
+
+  if (compact) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={openSearchDialog}
+        className="h-8 w-8 px-0"
+        aria-label={t('searchContent')}
+      >
+        <Tooltip content={t('searchContent')} asChild={false}>
+          <Search className="h-4 w-4" />
+        </Tooltip>
+      </Button>
+    );
+  }
 
   return (
     <button

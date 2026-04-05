@@ -14,6 +14,13 @@ export enum StreamKind {
   EXTERNAL_AUDIO = 'external_audio'
 }
 
+export enum NoiseSuppressionMode {
+  NONE = 'none',
+  STANDARD = 'standard',
+  RNNOISE = 'rnnoise',
+  DTLN = 'dtln'
+}
+
 export type TExternalStreamTrackKind = 'audio' | 'video';
 
 export type TExternalStreamTracks = {
@@ -47,6 +54,8 @@ export type TPublicServerSettings = Pick<
   | 'enablePlugins'
   | 'enableSearch'
   | 'storageSignedUrlsEnabled'
+  | 'defaultEchoCancellation'
+  | 'defaultNoiseSuppression'
 > & {
   webRtcMaxBitrate: number;
 };

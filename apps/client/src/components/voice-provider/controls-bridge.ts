@@ -1,6 +1,9 @@
+import type { TDeviceSettings } from '@/types';
+
 type TVoiceControlsBridge = {
   setMicMuted: (muted: boolean) => Promise<void>;
   setSoundMuted: (muted: boolean) => Promise<void>;
+  applyDeviceSettings: (settings: TDeviceSettings) => Promise<void>;
 };
 
 // Server settings screens are rendered from a top-level portal and may live

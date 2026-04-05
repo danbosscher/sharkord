@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
 import { initTest, login, uploadFile } from '../../__tests__/helpers';
-import { tdb, testsBaseUrl } from '../../__tests__/setup';
+import { tdb, testsBaseUrl } from '../../__tests__/test-context';
 import { loadCrons } from '../../crons';
 import {
   channels,

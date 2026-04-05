@@ -7,6 +7,7 @@ use sharkord_linux_client::native_client::{
     NativeSearchResults, text_channels,
 };
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -16,10 +17,18 @@ const APP_ID: &str = "org.zooi.SharkordLinuxClient";
 #[derive(Clone)]
 struct SessionState {
     generation: u64,
+    username: String,
     client: NativeClient,
     token: String,
     bootstrap: NativeBootstrap,
     selected_channel_id: u64,
+}
+
+#[derive(Clone, Default)]
+struct ReplyTarget {
+    message_id: u64,
+    parent_message_id: Option<u64>,
+    preview: String,
 }
 
 #[derive(Default)]
@@ -27,13 +36,17 @@ struct AppState {
     active_generation: u64,
     editing_message_id: Option<u64>,
     current_thread_parent_message_id: Option<u64>,
+    replying_to: Option<ReplyTarget>,
+    unread_channel_ids: BTreeSet<u64>,
     reconnect_in_flight: bool,
+    restore_in_flight: bool,
     session: Option<SessionState>,
 }
 
 enum UiMessage {
     Connected {
         generation: u64,
+        username: String,
         client: NativeClient,
         token: String,
         bootstrap: NativeBootstrap,
@@ -77,6 +90,7 @@ type NavigationUi = (
     gtk::Entry,
     gtk::Button,
     gtk::Button,
+    gtk::Label,
 );
 
 type ThreadUi = (
@@ -86,6 +100,7 @@ type ThreadUi = (
     gtk::Entry,
     gtk::Button,
     gtk::Button,
+    gtk::Label,
 );
 
 fn strip_html(input: &str) -> String {
@@ -116,16 +131,80 @@ fn clear_list_box(list_box: &gtk::ListBox) {
     }
 }
 
+fn truncate_preview(input: &str) -> String {
+    const MAX_LEN: usize = 48;
+
+    if input.chars().count() <= MAX_LEN {
+        return input.to_string();
+    }
+
+    let truncated = input.chars().take(MAX_LEN).collect::<String>();
+    format!("{truncated}…")
+}
+
+fn user_display_name(bootstrap: &NativeBootstrap, user_id: u64) -> String {
+    bootstrap
+        .users
+        .iter()
+        .find(|user| user.id == user_id)
+        .map(|user| user.name.clone())
+        .unwrap_or_else(|| format!("user {user_id}"))
+}
+
+fn set_compose_mode_ui(
+    app_state: &Rc<RefCell<AppState>>,
+    send_button: &gtk::Button,
+    cancel_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
+) {
+    let state = app_state.borrow();
+
+    if let Some(message_id) = state.editing_message_id {
+        send_button.set_label("Save Edit");
+        cancel_button.set_label("Cancel Edit");
+        cancel_button.set_sensitive(true);
+        compose_context_label.set_text(&format!("Editing message {}", message_id));
+        compose_context_label.set_visible(true);
+        return;
+    }
+
+    if let Some(reply_target) = state.replying_to.as_ref() {
+        send_button.set_label("Send Reply");
+        cancel_button.set_label("Cancel Reply");
+        cancel_button.set_sensitive(true);
+        compose_context_label.set_text(&format!(
+            "Replying to #{}: {}",
+            reply_target.message_id, reply_target.preview
+        ));
+        compose_context_label.set_visible(true);
+        return;
+    }
+
+    send_button.set_label("Send");
+    cancel_button.set_label("Cancel");
+    cancel_button.set_sensitive(false);
+    compose_context_label.set_text("");
+    compose_context_label.set_visible(false);
+}
+
 fn reset_edit_mode(
     app_state: &Rc<RefCell<AppState>>,
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
     cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
 ) {
-    app_state.borrow_mut().editing_message_id = None;
+    let mut state = app_state.borrow_mut();
+    state.editing_message_id = None;
+    state.replying_to = None;
+    drop(state);
     compose_entry.set_text("");
-    send_button.set_label("Send");
-    cancel_edit_button.set_sensitive(false);
+    set_compose_mode_ui(
+        app_state,
+        send_button,
+        cancel_edit_button,
+        compose_context_label,
+    );
 }
 
 fn reset_thread_context(app_state: &Rc<RefCell<AppState>>) {
@@ -137,13 +216,50 @@ fn begin_edit_mode(
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
     cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
     message_id: u64,
     content: &str,
 ) {
-    app_state.borrow_mut().editing_message_id = Some(message_id);
+    let mut state = app_state.borrow_mut();
+    state.replying_to = None;
+    state.editing_message_id = Some(message_id);
+    drop(state);
     compose_entry.set_text(content);
-    send_button.set_label("Save Edit");
-    cancel_edit_button.set_sensitive(true);
+    set_compose_mode_ui(
+        app_state,
+        send_button,
+        cancel_edit_button,
+        compose_context_label,
+    );
+    compose_entry.grab_focus();
+    compose_entry.set_position(-1);
+}
+
+fn begin_reply_mode(
+    app_state: &Rc<RefCell<AppState>>,
+    compose_entry: &gtk::Entry,
+    send_button: &gtk::Button,
+    cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
+    message_id: u64,
+    parent_message_id: Option<u64>,
+    preview: &str,
+) {
+    let mut state = app_state.borrow_mut();
+    state.editing_message_id = None;
+    state.replying_to = Some(ReplyTarget {
+        message_id,
+        parent_message_id,
+        preview: truncate_preview(preview),
+    });
+    drop(state);
+
+    set_compose_mode_ui(
+        app_state,
+        send_button,
+        cancel_edit_button,
+        compose_context_label,
+    );
     compose_entry.grab_focus();
     compose_entry.set_position(-1);
 }
@@ -152,6 +268,7 @@ fn populate_channel_list(
     channel_list: &gtk::ListBox,
     bootstrap: &NativeBootstrap,
     selected_channel_id: u64,
+    unread_channel_ids: &BTreeSet<u64>,
 ) {
     while let Some(child) = channel_list.first_child() {
         channel_list.remove(&child);
@@ -159,6 +276,15 @@ fn populate_channel_list(
 
     for channel in text_channels(bootstrap) {
         let row = gtk::ListBoxRow::new();
+        let channel_name = channel
+            .name
+            .unwrap_or_else(|| format!("channel-{}", channel.id));
+        let label_text =
+            if unread_channel_ids.contains(&channel.id) && channel.id != selected_channel_id {
+                format!("• {channel_name}")
+            } else {
+                channel_name
+            };
         let label = gtk::Label::builder()
             .xalign(0.0)
             .wrap(true)
@@ -166,11 +292,7 @@ fn populate_channel_list(
             .margin_bottom(8)
             .margin_start(12)
             .margin_end(12)
-            .label(
-                channel
-                    .name
-                    .unwrap_or_else(|| format!("channel-{}", channel.id)),
-            )
+            .label(label_text)
             .build();
 
         row.set_child(Some(&label));
@@ -285,12 +407,14 @@ fn populate_search_results(
                     compose_entry,
                     send_button,
                     cancel_edit_button,
+                    compose_context_label,
                 ) = navigation_ui.clone();
 
                 open_button.connect_clicked(move |_| {
                     let (client, token, generation, bootstrap) = {
                         let mut state = app_state.borrow_mut();
                         state.editing_message_id = None;
+                        state.replying_to = None;
                         state.current_thread_parent_message_id = None;
 
                         let Some(session) = state.session.as_mut() else {
@@ -309,8 +433,12 @@ fn populate_search_results(
                     };
 
                     compose_entry.set_text("");
-                    send_button.set_label("Send");
-                    cancel_edit_button.set_sensitive(false);
+                    set_compose_mode_ui(
+                        &app_state,
+                        &send_button,
+                        &cancel_edit_button,
+                        &compose_context_label,
+                    );
                     channel_label.set_text(&format!("Current channel: {}", channel_name));
                     select_channel_row(&channel_list, &bootstrap, channel_id);
                     content_stack.set_visible_child_name("timeline");
@@ -340,13 +468,16 @@ fn populate_search_results(
                     compose_entry,
                     send_button,
                     cancel_edit_button,
+                    compose_context_label,
                 ) = navigation_ui.clone();
-                let (thread_header_label, _thread_list, thread_stack, _, _, _) = thread_ui.clone();
+                let (thread_header_label, _thread_list, thread_stack, _, _, _, _) =
+                    thread_ui.clone();
 
                 open_thread_button.connect_clicked(move |_| {
                     let (client, token, generation, bootstrap) = {
                         let mut state = app_state.borrow_mut();
                         state.editing_message_id = None;
+                        state.replying_to = None;
                         state.current_thread_parent_message_id = Some(thread_parent_message_id);
 
                         let Some(session) = state.session.as_mut() else {
@@ -365,8 +496,12 @@ fn populate_search_results(
                     };
 
                     compose_entry.set_text("");
-                    send_button.set_label("Send");
-                    cancel_edit_button.set_sensitive(false);
+                    set_compose_mode_ui(
+                        &app_state,
+                        &send_button,
+                        &cancel_edit_button,
+                        &compose_context_label,
+                    );
                     channel_label.set_text(&format!("Current channel: {}", channel_name));
                     select_channel_row(&channel_list, &bootstrap, channel_id);
                     thread_header_label
@@ -449,12 +584,14 @@ fn populate_search_results(
                     compose_entry,
                     send_button,
                     cancel_edit_button,
+                    compose_context_label,
                 ) = navigation_ui.clone();
 
                 open_button.connect_clicked(move |_| {
                     let (client, token, generation, bootstrap) = {
                         let mut state = app_state.borrow_mut();
                         state.editing_message_id = None;
+                        state.replying_to = None;
                         state.current_thread_parent_message_id = None;
 
                         let Some(session) = state.session.as_mut() else {
@@ -473,8 +610,12 @@ fn populate_search_results(
                     };
 
                     compose_entry.set_text("");
-                    send_button.set_label("Send");
-                    cancel_edit_button.set_sensitive(false);
+                    set_compose_mode_ui(
+                        &app_state,
+                        &send_button,
+                        &cancel_edit_button,
+                        &compose_context_label,
+                    );
                     channel_label.set_text(&format!("Current channel: {}", channel_name));
                     select_channel_row(&channel_list, &bootstrap, channel_id);
                     content_stack.set_visible_child_name("timeline");
@@ -502,6 +643,7 @@ fn populate_search_results(
 
 fn populate_message_list(
     list_box: &gtk::ListBox,
+    bootstrap: &NativeBootstrap,
     messages: &NativeMessagesResponse,
     app_state: &Rc<RefCell<AppState>>,
     tx: &mpsc::Sender<UiMessage>,
@@ -509,6 +651,7 @@ fn populate_message_list(
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
     cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
     thread_ui: &ThreadUi,
 ) {
     clear_list_box(list_box);
@@ -543,7 +686,11 @@ fn populate_message_list(
             .xalign(0.0)
             .wrap(true)
             .css_classes(["dim-label"])
-            .label(format!("[{}] user {}", message.created_at, message.user_id))
+            .label(format!(
+                "[{}] {}",
+                message.created_at,
+                user_display_name(bootstrap, message.user_id)
+            ))
             .build();
 
         let content = gtk::Label::builder()
@@ -581,6 +728,7 @@ fn populate_message_list(
             .label("Delete")
             .css_classes(["destructive-action"])
             .build();
+        let reply_button = gtk::Button::builder().label("Reply").build();
         let view_thread_button = gtk::Button::builder().label("Thread").build();
 
         {
@@ -588,6 +736,7 @@ fn populate_message_list(
             let compose_entry = compose_entry.clone();
             let send_button = send_button.clone();
             let cancel_edit_button = cancel_edit_button.clone();
+            let compose_context_label = compose_context_label.clone();
             let status_label = status_label.clone();
             let message_id = message.id;
             let content_to_edit = plain_content;
@@ -598,6 +747,7 @@ fn populate_message_list(
                     &compose_entry,
                     &send_button,
                     &cancel_edit_button,
+                    &compose_context_label,
                     message_id,
                     &content_to_edit,
                 );
@@ -652,6 +802,7 @@ fn populate_message_list(
                 compose_entry,
                 send_button,
                 cancel_edit_button,
+                compose_context_label,
             ) = thread_ui.clone();
             let status_label = status_label.clone();
 
@@ -670,14 +821,19 @@ fn populate_message_list(
                     };
 
                     state.editing_message_id = None;
+                    state.replying_to = None;
                     state.current_thread_parent_message_id = Some(message_id);
 
                     (client, token, generation)
                 };
 
                 compose_entry.set_text("");
-                send_button.set_label("Send");
-                cancel_edit_button.set_sensitive(false);
+                set_compose_mode_ui(
+                    &app_state,
+                    &send_button,
+                    &cancel_edit_button,
+                    &compose_context_label,
+                );
                 thread_header_label.set_text(&format!("Thread for message {}", message_id));
                 content_stack.set_visible_child_name("thread");
                 status_label.set_text(&format!("Loading thread {}...", message_id));
@@ -685,8 +841,65 @@ fn populate_message_list(
             });
         }
 
+        {
+            let app_state = Rc::clone(app_state);
+            let tx = tx.clone();
+            let status_label = status_label.clone();
+            let compose_entry = compose_entry.clone();
+            let send_button = send_button.clone();
+            let cancel_edit_button = cancel_edit_button.clone();
+            let compose_context_label = compose_context_label.clone();
+            let message_id = message.id;
+            let preview = display_content.clone();
+            let (
+                thread_header_label,
+                _thread_list,
+                content_stack,
+                _thread_compose_entry,
+                _thread_send_button,
+                _thread_cancel_button,
+                _thread_context_label,
+            ) = thread_ui.clone();
+
+            reply_button.connect_clicked(move |_| {
+                let (client, token, generation) = {
+                    let mut state = app_state.borrow_mut();
+                    let Some((client, token, generation)) = state.session.as_ref().map(|session| {
+                        (
+                            session.client.clone(),
+                            session.token.clone(),
+                            session.generation,
+                        )
+                    }) else {
+                        status_label.set_text("Not connected.");
+                        return;
+                    };
+
+                    state.current_thread_parent_message_id = Some(message_id);
+
+                    (client, token, generation)
+                };
+
+                thread_header_label.set_text(&format!("Thread for message {}", message_id));
+                content_stack.set_visible_child_name("thread");
+                status_label.set_text(&format!("Loading thread {}...", message_id));
+                begin_reply_mode(
+                    &app_state,
+                    &compose_entry,
+                    &send_button,
+                    &cancel_edit_button,
+                    &compose_context_label,
+                    message_id,
+                    Some(message_id),
+                    &preview,
+                );
+                spawn_fetch_thread(tx.clone(), generation, client, token, message_id);
+            });
+        }
+
         actions.append(&edit_button);
         actions.append(&delete_button);
+        actions.append(&reply_button);
         actions.append(&view_thread_button);
 
         container.append(&meta);
@@ -709,6 +922,7 @@ fn populate_message_list(
 
 fn populate_thread_list(
     list_box: &gtk::ListBox,
+    bootstrap: &NativeBootstrap,
     parent_message: &NativeMessage,
     messages: &NativeMessagesResponse,
     app_state: &Rc<RefCell<AppState>>,
@@ -717,6 +931,7 @@ fn populate_thread_list(
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
     cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
 ) {
     clear_list_box(list_box);
 
@@ -747,8 +962,9 @@ fn populate_thread_list(
         .wrap(true)
         .css_classes(["dim-label"])
         .label(format!(
-            "[{}] user {}",
-            parent_message.created_at, parent_message.user_id
+            "[{}] {}",
+            parent_message.created_at,
+            user_display_name(bootstrap, parent_message.user_id)
         ))
         .build();
 
@@ -769,12 +985,14 @@ fn populate_thread_list(
         .label("Delete")
         .css_classes(["destructive-action"])
         .build();
+    let reply_button = gtk::Button::builder().label("Reply").build();
 
     {
         let app_state = Rc::clone(app_state);
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
         let status_label = status_label.clone();
         let message_id = parent_message.id;
         let content_to_edit = plain_content;
@@ -785,6 +1003,7 @@ fn populate_thread_list(
                 &compose_entry,
                 &send_button,
                 &cancel_edit_button,
+                &compose_context_label,
                 message_id,
                 &content_to_edit,
             );
@@ -828,8 +1047,35 @@ fn populate_thread_list(
         });
     }
 
+    {
+        let app_state = Rc::clone(app_state);
+        let compose_entry = compose_entry.clone();
+        let send_button = send_button.clone();
+        let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
+        let status_label = status_label.clone();
+        let message_id = parent_message.id;
+        let preview = display_content.clone();
+
+        reply_button.connect_clicked(move |_| {
+            begin_reply_mode(
+                &app_state,
+                &compose_entry,
+                &send_button,
+                &cancel_edit_button,
+                &compose_context_label,
+                message_id,
+                Some(message_id),
+                &preview,
+            );
+
+            status_label.set_text(&format!("Replying in thread {}", message_id));
+        });
+    }
+
     actions.append(&edit_button);
     actions.append(&delete_button);
+    actions.append(&reply_button);
     container.append(&meta);
     container.append(&content);
     container.append(&actions);
@@ -868,7 +1114,11 @@ fn populate_thread_list(
             .xalign(0.0)
             .wrap(true)
             .css_classes(["dim-label"])
-            .label(format!("[{}] user {}", message.created_at, message.user_id))
+            .label(format!(
+                "[{}] {}",
+                message.created_at,
+                user_display_name(bootstrap, message.user_id)
+            ))
             .build();
 
         let content = gtk::Label::builder()
@@ -888,12 +1138,14 @@ fn populate_thread_list(
             .label("Delete")
             .css_classes(["destructive-action"])
             .build();
+        let reply_button = gtk::Button::builder().label("Reply").build();
 
         {
             let app_state = Rc::clone(app_state);
             let compose_entry = compose_entry.clone();
             let send_button = send_button.clone();
             let cancel_edit_button = cancel_edit_button.clone();
+            let compose_context_label = compose_context_label.clone();
             let status_label = status_label.clone();
             let message_id = message.id;
             let content_to_edit = plain_content;
@@ -904,6 +1156,7 @@ fn populate_thread_list(
                     &compose_entry,
                     &send_button,
                     &cancel_edit_button,
+                    &compose_context_label,
                     message_id,
                     &content_to_edit,
                 );
@@ -948,8 +1201,36 @@ fn populate_thread_list(
             });
         }
 
+        {
+            let app_state = Rc::clone(app_state);
+            let compose_entry = compose_entry.clone();
+            let send_button = send_button.clone();
+            let cancel_edit_button = cancel_edit_button.clone();
+            let compose_context_label = compose_context_label.clone();
+            let status_label = status_label.clone();
+            let message_id = message.id;
+            let preview = display_content.clone();
+            let parent_message_id = parent_message.id;
+
+            reply_button.connect_clicked(move |_| {
+                begin_reply_mode(
+                    &app_state,
+                    &compose_entry,
+                    &send_button,
+                    &cancel_edit_button,
+                    &compose_context_label,
+                    message_id,
+                    Some(parent_message_id),
+                    &preview,
+                );
+
+                status_label.set_text(&format!("Replying to message {}", message_id));
+            });
+        }
+
         actions.append(&edit_button);
         actions.append(&delete_button);
+        actions.append(&reply_button);
         container.append(&meta);
         container.append(&content);
         container.append(&actions);
@@ -967,6 +1248,24 @@ fn active_text_channel_name(bootstrap: &NativeBootstrap, channel_id: u64) -> Str
         .unwrap_or_else(|| format!("Channel {channel_id}"))
 }
 
+fn persist_session_config(session: &SessionState) {
+    let _ = save_config(&StoredConfig {
+        server: session.client.base_url().to_string(),
+        username: session.username.clone(),
+        auth_token: Some(session.token.clone()),
+        last_channel_id: Some(session.selected_channel_id),
+    });
+}
+
+fn clear_saved_session_token(server: &str, username: &str) {
+    let _ = save_config(&StoredConfig {
+        server: server.to_string(),
+        username: username.to_string(),
+        auth_token: None,
+        last_channel_id: None,
+    });
+}
+
 fn spawn_connect(
     tx: mpsc::Sender<UiMessage>,
     generation: u64,
@@ -976,6 +1275,7 @@ fn spawn_connect(
     server_password: Option<String>,
 ) {
     std::thread::spawn(move || {
+        let connection_username = username.clone();
         let result: Result<_> = (|| {
             let runtime = tokio::runtime::Runtime::new()?;
 
@@ -996,6 +1296,7 @@ fn spawn_connect(
             Ok((client, token, bootstrap, initial_channel_id, messages)) => {
                 let _ = tx.send(UiMessage::Connected {
                     generation,
+                    username: connection_username,
                     client: client.clone(),
                     token: token.clone(),
                     bootstrap: bootstrap.clone(),
@@ -1018,6 +1319,7 @@ fn spawn_connect(
 fn spawn_restore_session(
     tx: mpsc::Sender<UiMessage>,
     generation: u64,
+    username: String,
     client: NativeClient,
     token: String,
     preferred_channel_id: u64,
@@ -1049,6 +1351,7 @@ fn spawn_restore_session(
             Ok((client, token, bootstrap, initial_channel_id, messages)) => {
                 let _ = tx.send(UiMessage::Connected {
                     generation,
+                    username: username.clone(),
                     client: client.clone(),
                     token: token.clone(),
                     bootstrap,
@@ -1155,6 +1458,7 @@ fn spawn_send_message(
     channel_id: u64,
     content: String,
     thread_parent_message_id: Option<u64>,
+    reply_to_message_id: Option<u64>,
 ) {
     std::thread::spawn(move || {
         let result: Result<_> = (|| {
@@ -1162,7 +1466,13 @@ fn spawn_send_message(
 
             runtime.block_on(async move {
                 client
-                    .send_message(&token, channel_id, &content, thread_parent_message_id, None)
+                    .send_message(
+                        &token,
+                        channel_id,
+                        &content,
+                        thread_parent_message_id,
+                        reply_to_message_id,
+                    )
                     .await?;
 
                 if let Some(parent_message_id) = thread_parent_message_id {
@@ -1399,13 +1709,13 @@ fn build_ui(app: &adw::Application) {
     let server_entry = gtk::Entry::builder()
         .hexpand(true)
         .placeholder_text("https://chat.zooi.org")
-        .text(saved_config.server)
+        .text(&saved_config.server)
         .build();
 
     let username_entry = gtk::Entry::builder()
         .hexpand(true)
         .placeholder_text("Username")
-        .text(saved_config.username)
+        .text(&saved_config.username)
         .build();
 
     let password_entry = gtk::PasswordEntry::builder()
@@ -1481,6 +1791,14 @@ fn build_ui(app: &adw::Application) {
         .placeholder_text("Type a plain text message")
         .build();
     compose_entry.set_sensitive(false);
+
+    let compose_context_label = gtk::Label::builder()
+        .xalign(0.0)
+        .wrap(true)
+        .css_classes(["dim-label"])
+        .label("")
+        .visible(false)
+        .build();
 
     let search_entry = gtk::Entry::builder()
         .hexpand(true)
@@ -1616,6 +1934,7 @@ fn build_ui(app: &adw::Application) {
     right_column.append(&channel_label);
     right_column.append(&search_box);
     right_column.append(&content_stack);
+    right_column.append(&compose_context_label);
     right_column.append(&compose_box);
 
     let paned = gtk::Paned::builder()
@@ -1697,7 +2016,7 @@ fn build_ui(app: &adw::Application) {
         let reconnect_button = reconnect_button.clone();
 
         reconnect_button.clone().connect_clicked(move |_| {
-            let (client, token, generation, channel_id) = {
+            let (client, token, generation, channel_id, username) = {
                 let mut state = app_state.borrow_mut();
                 let Some(session) = state.session.as_ref() else {
                     status_label.set_text("Not connected.");
@@ -1713,15 +2032,16 @@ fn build_ui(app: &adw::Application) {
                 let token = session.token.clone();
                 let generation = session.generation;
                 let channel_id = session.selected_channel_id;
+                let username = session.username.clone();
 
                 state.reconnect_in_flight = true;
 
-                (client, token, generation, channel_id)
+                (client, token, generation, channel_id, username)
             };
 
             reconnect_button.set_sensitive(false);
             status_label.set_text("Reconnecting...");
-            spawn_restore_session(tx.clone(), generation, client, token, channel_id);
+            spawn_restore_session(tx.clone(), generation, username, client, token, channel_id);
         });
     }
 
@@ -1729,9 +2049,11 @@ fn build_ui(app: &adw::Application) {
         let tx = tx.clone();
         let app_state = Rc::clone(&app_state);
         let channel_label = channel_label.clone();
+        let channel_list_for_selection = channel_list.clone();
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
         let content_stack = content_stack.clone();
 
         channel_list.connect_row_selected(move |_, maybe_row| {
@@ -1765,6 +2087,7 @@ fn build_ui(app: &adw::Application) {
                 state.current_thread_parent_message_id = None;
                 if let Some(session) = state.session.as_mut() {
                     session.selected_channel_id = channel_id;
+                    persist_session_config(session);
                 }
 
                 (client, token, generation, channel_id, channel_name)
@@ -1775,7 +2098,16 @@ fn build_ui(app: &adw::Application) {
                 &compose_entry,
                 &send_button,
                 &cancel_edit_button,
+                &compose_context_label,
             );
+            if let Some(session) = app_state.borrow().session.as_ref() {
+                populate_channel_list(
+                    &channel_list_for_selection,
+                    &session.bootstrap,
+                    channel_id,
+                    &app_state.borrow().unread_channel_ids,
+                );
+            }
             content_stack.set_visible_child_name("timeline");
             channel_label.set_text(&format!("Current channel: {}", channel_name));
             spawn_fetch_messages(tx.clone(), generation, client, token, channel_id);
@@ -1788,6 +2120,7 @@ fn build_ui(app: &adw::Application) {
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
         let status_label = status_label.clone();
 
         send_button.clone().connect_clicked(move |_| {
@@ -1804,6 +2137,7 @@ fn build_ui(app: &adw::Application) {
                 channel_id,
                 editing_message_id,
                 current_thread_parent_message_id,
+                reply_target,
             ) = {
                 let mut state = app_state.borrow_mut();
                 let Some(session) = state.session.as_ref() else {
@@ -1817,6 +2151,8 @@ fn build_ui(app: &adw::Application) {
                 let channel_id = session.selected_channel_id;
                 let current_thread_parent_message_id = state.current_thread_parent_message_id;
                 let editing_message_id = state.editing_message_id.take();
+                let reply_target = state.replying_to.clone();
+                state.replying_to = None;
 
                 (
                     client,
@@ -1825,12 +2161,17 @@ fn build_ui(app: &adw::Application) {
                     channel_id,
                     editing_message_id,
                     current_thread_parent_message_id,
+                    reply_target,
                 )
             };
 
             compose_entry.set_text("");
-            send_button.set_label("Send");
-            cancel_edit_button.set_sensitive(false);
+            set_compose_mode_ui(
+                &app_state,
+                &send_button,
+                &cancel_edit_button,
+                &compose_context_label,
+            );
 
             if let Some(message_id) = editing_message_id {
                 status_label.set_text(&format!("Saving edit for message {}...", message_id));
@@ -1857,7 +2198,11 @@ fn build_ui(app: &adw::Application) {
                     token,
                     channel_id,
                     content,
-                    current_thread_parent_message_id,
+                    reply_target
+                        .as_ref()
+                        .and_then(|target| target.parent_message_id)
+                        .or(current_thread_parent_message_id),
+                    reply_target.as_ref().map(|target| target.message_id),
                 );
             }
         });
@@ -1875,6 +2220,7 @@ fn build_ui(app: &adw::Application) {
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
         let status_label = status_label.clone();
 
         cancel_edit_button.clone().connect_clicked(move |_| {
@@ -1883,8 +2229,9 @@ fn build_ui(app: &adw::Application) {
                 &compose_entry,
                 &send_button,
                 &cancel_edit_button,
+                &compose_context_label,
             );
-            status_label.set_text("Edit cancelled");
+            status_label.set_text("Compose mode cleared");
         });
     }
 
@@ -1982,6 +2329,7 @@ fn build_ui(app: &adw::Application) {
     }
 
     {
+        let app = app.clone();
         let app_state = Rc::clone(&app_state);
         let connect_button = connect_button.clone();
         let status_label = status_label.clone();
@@ -2000,10 +2348,12 @@ fn build_ui(app: &adw::Application) {
         let reconnect_button = reconnect_button.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
+        let compose_context_label = compose_context_label.clone();
         let server_entry = server_entry.clone();
         let username_entry = username_entry.clone();
         let thread_header_label = thread_header_label.clone();
         let thread_list = thread_list.clone();
+        let window = window.clone();
         let navigation_ui = (
             status_label.clone(),
             channel_label.clone(),
@@ -2012,6 +2362,7 @@ fn build_ui(app: &adw::Application) {
             compose_entry.clone(),
             send_button.clone(),
             cancel_edit_button.clone(),
+            compose_context_label.clone(),
         );
         let thread_ui = (
             thread_header_label.clone(),
@@ -2020,13 +2371,16 @@ fn build_ui(app: &adw::Application) {
             compose_entry.clone(),
             send_button.clone(),
             cancel_edit_button.clone(),
+            compose_context_label.clone(),
         );
 
+        let tx_for_events = tx.clone();
         glib::timeout_add_local(Duration::from_millis(50), move || {
             while let Ok(message) = rx.try_recv() {
                 match message {
                     UiMessage::Connected {
                         generation,
+                        username,
                         client,
                         token,
                         bootstrap,
@@ -2041,10 +2395,13 @@ fn build_ui(app: &adw::Application) {
                             }
 
                             state.editing_message_id = None;
+                            state.replying_to = None;
                             state.current_thread_parent_message_id = None;
                             state.reconnect_in_flight = false;
+                            state.restore_in_flight = false;
                             state.session = Some(SessionState {
                                 generation,
+                                username,
                                 client,
                                 token,
                                 bootstrap: bootstrap.clone(),
@@ -2071,26 +2428,36 @@ fn build_ui(app: &adw::Application) {
                             "Current channel: {}",
                             active_text_channel_name(&bootstrap, initial_channel_id)
                         ));
-                        send_button.set_label("Send");
-                        cancel_edit_button.set_sensitive(false);
+                        set_compose_mode_ui(
+                            &app_state,
+                            &send_button,
+                            &cancel_edit_button,
+                            &compose_context_label,
+                        );
                         content_stack.set_visible_child_name("timeline");
                         populate_message_list(
                             &message_list,
+                            &bootstrap,
                             &messages,
                             &app_state,
-                            &tx,
+                            &tx_for_events,
                             &status_label,
                             &compose_entry,
                             &send_button,
                             &cancel_edit_button,
+                            &compose_context_label,
                             &thread_ui,
                         );
-                        populate_channel_list(&channel_list, &bootstrap, initial_channel_id);
+                        populate_channel_list(
+                            &channel_list,
+                            &bootstrap,
+                            initial_channel_id,
+                            &app_state.borrow().unread_channel_ids,
+                        );
 
-                        let _ = save_config(&StoredConfig {
-                            server: server_entry.text().to_string(),
-                            username: username_entry.text().to_string(),
-                        });
+                        if let Some(session) = app_state.borrow().session.as_ref() {
+                            persist_session_config(session);
+                        }
                     }
                     UiMessage::MessagesLoaded {
                         generation,
@@ -2109,7 +2476,9 @@ fn build_ui(app: &adw::Application) {
 
                             if is_current {
                                 state.editing_message_id = None;
+                                state.replying_to = None;
                                 state.current_thread_parent_message_id = None;
+                                state.unread_channel_ids.remove(&channel_id);
                             }
 
                             is_current
@@ -2119,20 +2488,42 @@ fn build_ui(app: &adw::Application) {
                             continue;
                         }
 
-                        send_button.set_label("Send");
-                        cancel_edit_button.set_sensitive(false);
                         compose_entry.set_text("");
+                        set_compose_mode_ui(
+                            &app_state,
+                            &send_button,
+                            &cancel_edit_button,
+                            &compose_context_label,
+                        );
                         content_stack.set_visible_child_name("timeline");
+                        let bootstrap = {
+                            let state = app_state.borrow();
+                            state
+                                .session
+                                .as_ref()
+                                .map(|session| session.bootstrap.clone())
+                        };
+                        let Some(bootstrap) = bootstrap else {
+                            continue;
+                        };
                         populate_message_list(
                             &message_list,
+                            &bootstrap,
                             &messages,
                             &app_state,
-                            &tx,
+                            &tx_for_events,
                             &status_label,
                             &compose_entry,
                             &send_button,
                             &cancel_edit_button,
+                            &compose_context_label,
                             &thread_ui,
+                        );
+                        populate_channel_list(
+                            &channel_list,
+                            &bootstrap,
+                            channel_id,
+                            &app_state.borrow().unread_channel_ids,
                         );
                         status_label.set_text("Synced");
                     }
@@ -2160,6 +2551,7 @@ fn build_ui(app: &adw::Application) {
                             &compose_entry,
                             &send_button,
                             &cancel_edit_button,
+                            &compose_context_label,
                         );
                         reset_thread_context(&app_state);
                         populate_search_results(
@@ -2167,7 +2559,7 @@ fn build_ui(app: &adw::Application) {
                             &query,
                             &results,
                             &app_state,
-                            &tx,
+                            &tx_for_events,
                             &navigation_ui,
                             &thread_ui,
                         );
@@ -2190,6 +2582,7 @@ fn build_ui(app: &adw::Application) {
 
                             if is_current {
                                 state.editing_message_id = None;
+                                state.replying_to = None;
                                 state.current_thread_parent_message_id = Some(parent_message.id);
                             }
 
@@ -2200,50 +2593,112 @@ fn build_ui(app: &adw::Application) {
                             continue;
                         }
 
-                        send_button.set_label("Send");
-                        cancel_edit_button.set_sensitive(false);
                         compose_entry.set_text("");
+                        set_compose_mode_ui(
+                            &app_state,
+                            &send_button,
+                            &cancel_edit_button,
+                            &compose_context_label,
+                        );
+                        let bootstrap = {
+                            let state = app_state.borrow();
+                            state
+                                .session
+                                .as_ref()
+                                .map(|session| session.bootstrap.clone())
+                        };
+                        let Some(bootstrap) = bootstrap else {
+                            continue;
+                        };
                         thread_header_label
                             .set_text(&format!("Thread for message {}", parent_message.id));
                         populate_thread_list(
                             &thread_list,
+                            &bootstrap,
                             &parent_message,
                             &messages,
                             &app_state,
-                            &tx,
+                            &tx_for_events,
                             &status_label,
                             &compose_entry,
                             &send_button,
                             &cancel_edit_button,
+                            &compose_context_label,
                         );
                         content_stack.set_visible_child_name("thread");
                         status_label.set_text("Thread synced");
                     }
                     UiMessage::Event { generation, event } => {
+                        let window_active = window.is_active();
+                        let event_channel_id = event
+                            .payload
+                            .get("channelId")
+                            .and_then(|value| value.as_u64());
+                        let new_message = if event.event_type == "newMessage" {
+                            serde_json::from_value::<NativeMessage>(event.payload.clone()).ok()
+                        } else {
+                            None
+                        };
+                        let mut unread_channel_update = None;
+                        let mut notification = None;
                         let refresh_targets = {
-                            let state = app_state.borrow();
-                            match state.session.as_ref() {
-                                Some(session)
-                                    if generation == state.active_generation
-                                        && generation == session.generation
-                                        && matches!(
-                                            event.event_type.as_str(),
-                                            "newMessage" | "messageUpdate" | "messageDelete"
-                                        ) =>
-                                {
-                                    let event_channel_id = event
-                                        .payload
-                                        .get("channelId")
-                                        .and_then(|value| value.as_u64());
+                            let mut state = app_state.borrow_mut();
+                            let current_thread_parent_message_id =
+                                state.current_thread_parent_message_id;
 
-                                    if event_channel_id != Some(session.selected_channel_id) {
+                            match state.session.as_ref().map(|session| {
+                                (
+                                    session.client.clone(),
+                                    session.token.clone(),
+                                    session.selected_channel_id,
+                                    session.generation,
+                                    session.bootstrap.clone(),
+                                )
+                            }) {
+                                Some((
+                                    client,
+                                    token,
+                                    selected_channel_id,
+                                    session_generation,
+                                    bootstrap,
+                                )) if generation == state.active_generation
+                                    && generation == session_generation
+                                    && matches!(
+                                        event.event_type.as_str(),
+                                        "newMessage" | "messageUpdate" | "messageDelete"
+                                    ) =>
+                                {
+                                    if let (Some(channel_id), Some(message)) =
+                                        (event_channel_id, new_message.as_ref())
+                                    {
+                                        if message.user_id != bootstrap.own_user_id
+                                            && (channel_id != selected_channel_id || !window_active)
+                                        {
+                                            state.unread_channel_ids.insert(channel_id);
+                                            unread_channel_update =
+                                                Some((bootstrap.clone(), selected_channel_id));
+                                            notification = Some((
+                                                message.id,
+                                                format!(
+                                                    "{} in {}",
+                                                    user_display_name(&bootstrap, message.user_id),
+                                                    active_text_channel_name(
+                                                        &bootstrap, channel_id
+                                                    )
+                                                ),
+                                                truncate_preview(&strip_html(&message.content)),
+                                            ));
+                                        }
+                                    }
+
+                                    if event_channel_id != Some(selected_channel_id) {
                                         None
                                     } else {
                                         Some((
-                                            session.client.clone(),
-                                            session.token.clone(),
-                                            session.selected_channel_id,
-                                            state.current_thread_parent_message_id,
+                                            client,
+                                            token,
+                                            selected_channel_id,
+                                            current_thread_parent_message_id,
                                         ))
                                     }
                                 }
@@ -2251,12 +2706,30 @@ fn build_ui(app: &adw::Application) {
                             }
                         };
 
+                        if let Some((bootstrap, selected_channel_id)) = unread_channel_update {
+                            populate_channel_list(
+                                &channel_list,
+                                &bootstrap,
+                                selected_channel_id,
+                                &app_state.borrow().unread_channel_ids,
+                            );
+                        }
+
+                        if let Some((message_id, title, body)) = notification {
+                            let desktop_notification = gtk::gio::Notification::new(&title);
+                            desktop_notification.set_body(Some(&body));
+                            app.send_notification(
+                                Some(&format!("sharkord-message-{message_id}")),
+                                &desktop_notification,
+                            );
+                        }
+
                         if let Some((client, token, channel_id, thread_parent_message_id)) =
                             refresh_targets
                         {
                             if let Some(parent_message_id) = thread_parent_message_id {
                                 spawn_fetch_thread(
-                                    tx.clone(),
+                                    tx_for_events.clone(),
                                     generation,
                                     client,
                                     token,
@@ -2264,7 +2737,7 @@ fn build_ui(app: &adw::Application) {
                                 );
                             } else {
                                 spawn_fetch_messages(
-                                    tx.clone(),
+                                    tx_for_events.clone(),
                                     generation,
                                     client,
                                     token,
@@ -2298,18 +2771,20 @@ fn build_ui(app: &adw::Application) {
                             let client = session.client.clone();
                             let token = session.token.clone();
                             let channel_id = session.selected_channel_id;
+                            let username = session.username.clone();
 
                             state.reconnect_in_flight = true;
 
-                            Some((client, token, channel_id))
+                            Some((client, token, channel_id, username))
                         };
 
-                        if let Some((client, token, channel_id)) = reconnect {
+                        if let Some((client, token, channel_id, username)) = reconnect {
                             reconnect_button.set_sensitive(false);
                             status_label.set_text("Connection dropped. Reconnecting...");
                             spawn_restore_session(
-                                tx.clone(),
+                                tx_for_events.clone(),
                                 generation,
+                                username,
                                 client,
                                 token,
                                 channel_id,
@@ -2326,13 +2801,22 @@ fn build_ui(app: &adw::Application) {
                         };
 
                         if is_current {
-                            {
+                            let restore_failed = {
                                 let mut state = app_state.borrow_mut();
+                                let restore_failed = state.restore_in_flight;
                                 state.reconnect_in_flight = false;
-                            }
+                                state.restore_in_flight = false;
+                                restore_failed
+                            };
 
                             connect_button.set_sensitive(true);
                             reconnect_button.set_sensitive(true);
+                            if restore_failed {
+                                clear_saved_session_token(
+                                    &server_entry.text(),
+                                    &username_entry.text(),
+                                );
+                            }
                             status_label.set_text(&message);
                         }
                     }
@@ -2341,6 +2825,34 @@ fn build_ui(app: &adw::Application) {
 
             glib::ControlFlow::Continue
         });
+    }
+
+    if let Some(saved_token) = saved_config.auth_token.clone() {
+        if !saved_config.server.is_empty() && !saved_config.username.is_empty() {
+            let preferred_channel_id = saved_config.last_channel_id.unwrap_or_default();
+
+            if let Ok(client) = NativeClient::new(&saved_config.server) {
+                let generation = {
+                    let mut state = app_state.borrow_mut();
+                    state.active_generation += 1;
+                    state.restore_in_flight = true;
+                    state.active_generation
+                };
+
+                connect_button.set_sensitive(false);
+                reconnect_button.set_sensitive(false);
+                status_label.set_text("Restoring saved session...");
+
+                spawn_restore_session(
+                    tx.clone(),
+                    generation,
+                    saved_config.username.clone(),
+                    client,
+                    saved_token,
+                    preferred_channel_id,
+                );
+            }
+        }
     }
 
     window.present();

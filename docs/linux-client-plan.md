@@ -111,7 +111,7 @@ Status:
 - the first thin slice is now in place
 - the server exposes a minimal native HTTP+SSE contract for bootstrap, message fetch/send/edit/delete/search, and event streaming
 - `apps/linux-client/src/bin/headless.rs` proves that contract from a non-browser process, including one-shot message get/search/edit/delete operations
-- the GTK app now uses the same boundary for real text login, channel browsing, message loading, plain text send, inline edit/delete actions, a separate search-results view with navigation back into the live timeline, dedicated thread views with inline edit/delete on thread rows, thread replies through the compose box while a thread is open, manual refresh that respects the active root/thread view, search, and token-based reconnect when the event stream drops
+- the GTK app now uses the same boundary for real text login, channel browsing, message loading, plain text send, explicit reply mode, inline edit/delete actions, a separate search-results view with navigation back into the live timeline, dedicated thread views with inline edit/delete on thread rows, thread replies through the compose box while a thread is open, manual refresh that respects the active root/thread view, search, token-based reconnect when the event stream drops, saved-session resume with remembered last channel, unread channel markers, and desktop notifications for new messages from other users
 
 ### Phase 2
 
@@ -121,6 +121,11 @@ Status:
 - messages
 - search and refresh
 - notifications
+
+Status:
+
+- complete enough for a real text-client prototype, including session resume, reconnect, explicit reply targeting, thread navigation, unread channel markers, and desktop notifications
+- still missing attachments, richer read-state UX, and live-server usability cleanup before calling the text slice "done"
 
 ### Phase 3
 
@@ -138,9 +143,9 @@ Status:
 
 ## Immediate next tasks
 
-1. Add a minimal settings file format for server URL and remembered username.
-2. Improve timeline interaction beyond the current utilitarian row list so message context, attachments, and reply targets read better.
-3. Add richer thread-specific affordances such as explicit reply targeting, thread participant context, and navigation back to the parent row in the root timeline.
+1. Improve timeline interaction beyond the current utilitarian row list so attachments, richer reply previews, and parent-message jumps read better.
+2. Harden native text behavior against real-server usage, especially read-state, notification preferences, and awkward reconnect edge cases.
+3. Add file download/upload support so the text client can handle normal everyday chat, not just plain-text rooms.
 4. Only after that, invest in native voice transport and richer GTK screens.
 
 ## Success criteria

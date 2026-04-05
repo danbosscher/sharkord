@@ -11,6 +11,8 @@ const APP_CONFIG_FILE: &str = "config.json";
 pub struct StoredConfig {
     pub server: String,
     pub username: String,
+    pub auth_token: Option<String>,
+    pub last_channel_id: Option<u64>,
 }
 
 fn config_dir() -> Result<PathBuf> {

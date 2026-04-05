@@ -13,13 +13,27 @@ pub struct NativeChannel {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct NativeUser {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct NativeReplyPreview {
+    pub id: u64,
+    #[serde(rename = "userId")]
+    pub user_id: u64,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct NativeBootstrap {
     #[serde(rename = "serverName")]
     pub server_name: String,
     #[serde(rename = "ownUserId")]
     pub own_user_id: u64,
     pub channels: Vec<NativeChannel>,
-    pub users: Vec<Value>,
+    pub users: Vec<NativeUser>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -36,6 +50,8 @@ pub struct NativeMessage {
     pub reply_to_message_id: Option<u64>,
     #[serde(rename = "replyCount")]
     pub reply_count: Option<u64>,
+    #[serde(rename = "replyTo")]
+    pub reply_to: Option<NativeReplyPreview>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

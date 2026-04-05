@@ -7,5 +7,6 @@
 .direnv/
 /data-test
 /apps/client/dist
+/apps/linux-client/target
 /apps/server/build/out
 /apps/server/build/temp

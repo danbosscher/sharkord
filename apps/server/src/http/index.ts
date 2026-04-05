@@ -15,6 +15,17 @@ import { infoRouteHandler } from './info';
 import { interfaceRouteHandler } from './interface';
 import { loginRouteHandler } from './login';
 import { manifestRouteHandler } from './manifest';
+import {
+  nativeBootstrapRouteHandler,
+  nativeDeleteMessageRouteHandler,
+  nativeEditMessageRouteHandler,
+  nativeEventsRouteHandler,
+  nativeGetMessageRouteHandler,
+  nativeGetThreadMessagesRouteHandler,
+  nativeListMessagesRouteHandler,
+  nativeSearchMessagesRouteHandler,
+  nativeSendMessageRouteHandler
+} from './native';
 import { pluginBundleRouteHandler } from './plugin-bundle';
 import { pluginsComponentsRouteHandler } from './plugins-components';
 import { publicRouteHandler } from './public';
@@ -40,7 +51,8 @@ const routeHandlers: Partial<
     exact: {
       '/healthz': (req, res) => healthRouteHandler(req, res),
       '/info': (req, res) => infoRouteHandler(req, res),
-      '/manifest.json': (req, res) => manifestRouteHandler(req, res)
+      '/manifest.json': (req, res) => manifestRouteHandler(req, res),
+      '/native/events': (req, res) => nativeEventsRouteHandler(req, res)
     },
     prefix: {
       '/public': (req, res) => publicRouteHandler(req, res),
@@ -52,7 +64,21 @@ const routeHandlers: Partial<
   POST: {
     exact: {
       '/upload': (req, res) => uploadFileRouteHandler(req, res),
-      '/login': (req, res) => loginRouteHandler(req, res)
+      '/login': (req, res) => loginRouteHandler(req, res),
+      '/native/bootstrap': (req, res) => nativeBootstrapRouteHandler(req, res),
+      '/native/messages/get': (req, res) => nativeGetMessageRouteHandler(req, res),
+      '/native/messages/thread': (req, res) =>
+        nativeGetThreadMessagesRouteHandler(req, res),
+      '/native/messages/list': (req, res) =>
+        nativeListMessagesRouteHandler(req, res),
+      '/native/messages/search': (req, res) =>
+        nativeSearchMessagesRouteHandler(req, res),
+      '/native/messages/send': (req, res) =>
+        nativeSendMessageRouteHandler(req, res),
+      '/native/messages/edit': (req, res) =>
+        nativeEditMessageRouteHandler(req, res),
+      '/native/messages/delete': (req, res) =>
+        nativeDeleteMessageRouteHandler(req, res)
     },
     prefix: {}
   }

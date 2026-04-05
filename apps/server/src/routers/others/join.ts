@@ -2,23 +2,15 @@ import { ActivityLogType, ServerEvents, UserStatus } from '@sharkord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
-import {
-  getAllChannelUserPermissions,
-  getChannelsForUser,
-  getChannelsReadStatesForUser
-} from '../../db/queries/channels';
-import { getEmojis } from '../../db/queries/emojis';
-import { getRoles } from '../../db/queries/roles';
-import { getPublicSettings, getSettings } from '../../db/queries/server';
-import { getPublicUsers } from '../../db/queries/users';
-import { categories, users } from '../../db/schema';
+import { getSettings } from '../../db/queries/server';
+import { users } from '../../db/schema';
 import { shouldAskServerPassword } from '../../helpers/should-ask-server-password';
 import { logger } from '../../logger';
 import { pluginManager } from '../../plugins';
 import { eventBus } from '../../plugins/event-bus';
 import { enqueueActivityLog } from '../../queues/activity-log';
 import { enqueueLogin } from '../../queues/logins';
-import { VoiceRuntime } from '../../runtimes/voice';
+import { getServerBootstrap } from '../../services/get-server-bootstrap';
 import { invariant } from '../../utils/invariant';
 import { rateLimitedProcedure, t } from '../../utils/trpc';
 
@@ -67,37 +59,12 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
     ctx.authenticated = true;
     ctx.setWsUserId(ctx.user.id);
 
-    const [
-      allCategories,
-      channelsForUser,
-      publicUsers,
-      roles,
-      emojis,
-      channelPermissions,
-      readStates,
-      publicSettings,
-      pluginsMetadata
-    ] = await Promise.all([
-      db.select().from(categories),
-      getChannelsForUser(ctx.user.id), // filter channels based on permissions and DM participation
-      getPublicUsers(true), // return identity to get status of already connected users
-      getRoles(),
-      getEmojis(),
-      getAllChannelUserPermissions(ctx.user.id),
-      getChannelsReadStatesForUser(ctx.user.id),
-      getPublicSettings(),
-      pluginManager.getActivePluginMetadata()
-    ]);
+    const bootstrap = await getServerBootstrap({
+      userId: ctx.user.id,
+      getStatusById: ctx.getStatusById
+    });
 
-    const processedPublicUsers = publicUsers.map((u) => ({
-      ...u,
-      status: ctx.getStatusById(u.id),
-      _identity: undefined // remove identity before sending to client
-    }));
-
-    const foundPublicUser = processedPublicUsers.find(
-      (u) => u.id === ctx.user.id
-    );
+    const foundPublicUser = bootstrap.users.find((user) => user.id === ctx.user.id);
 
     invariant(foundPublicUser, {
       code: 'NOT_FOUND',
@@ -114,10 +81,6 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
     if (connectionInfo?.ip) {
       ctx.saveUserIp(ctx.user.id, connectionInfo.ip);
     }
-
-    const voiceMap = VoiceRuntime.getVoiceMap();
-    const externalStreamsMap = VoiceRuntime.getExternalStreamsMap();
-
     await db
       .update(users)
       .set({ lastLoginAt: Date.now() })
@@ -135,24 +98,7 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
       username: ctx.user.name
     });
 
-    return {
-      categories: allCategories,
-      channels: channelsForUser,
-      users: processedPublicUsers,
-      serverId: settings.serverId,
-      serverName: settings.name,
-      ownUserId: ctx.user.id,
-      voiceMap,
-      roles,
-      emojis,
-      publicSettings,
-      channelPermissions,
-      readStates,
-      commands: pluginManager.getCommands(),
-      pluginIdsWithComponents: pluginManager.getPluginIdsWithComponents(),
-      pluginsMetadata,
-      externalStreamsMap
-    };
+    return bootstrap;
   });
 
 export { joinServerRoute };

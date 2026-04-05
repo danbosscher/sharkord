@@ -1,7 +1,7 @@
 use adw::prelude::*;
 use anyhow::Result;
 use gtk::glib;
-use sharkord_linux_client::config::{StoredConfig, load_config, save_config};
+use sharkord_linux_client::config::{SavedSession, load_config, save_config};
 use sharkord_linux_client::native_client::{
     NativeBootstrap, NativeClient, NativeEventEnvelope, NativeFile, NativeMessage,
     NativeMessagesResponse, NativeSearchResults, NativeTempFile, text_channels,
@@ -1753,21 +1753,34 @@ fn active_text_channel_name(bootstrap: &NativeBootstrap, channel_id: u64) -> Str
 }
 
 fn persist_session_config(session: &SessionState) {
-    let _ = save_config(&StoredConfig {
-        server: session.client.base_url().to_string(),
-        username: session.username.clone(),
+    let server = session.client.base_url().to_string();
+    let username = session.username.clone();
+    let mut config = load_config().ok().flatten().unwrap_or_default();
+
+    config.server = server.clone();
+    config.username = username.clone();
+    config.auth_token = Some(session.token.clone());
+    config.last_channel_id = Some(session.selected_channel_id);
+    config.upsert_saved_session(SavedSession {
+        server,
+        username,
         auth_token: Some(session.token.clone()),
         last_channel_id: Some(session.selected_channel_id),
     });
+
+    let _ = save_config(&config);
 }
 
 fn clear_saved_session_token(server: &str, username: &str) {
-    let _ = save_config(&StoredConfig {
-        server: server.to_string(),
-        username: username.to_string(),
-        auth_token: None,
-        last_channel_id: None,
-    });
+    let mut config = load_config().ok().flatten().unwrap_or_default();
+
+    config.server = server.to_string();
+    config.username = username.to_string();
+    config.auth_token = None;
+    config.last_channel_id = None;
+    config.clear_saved_session(server, username);
+
+    let _ = save_config(&config);
 }
 
 fn spawn_connect(
@@ -3635,11 +3648,11 @@ fn build_ui(app: &adw::Application) {
         });
     }
 
-    if let Some(saved_token) = saved_config.auth_token.clone() {
-        if !saved_config.server.is_empty() && !saved_config.username.is_empty() {
-            let preferred_channel_id = saved_config.last_channel_id.unwrap_or_default();
+    if let Some(saved_session) = saved_config.selected_saved_session() {
+        if let Some(saved_token) = saved_session.auth_token.clone() {
+            let preferred_channel_id = saved_session.last_channel_id.unwrap_or_default();
 
-            if let Ok(client) = NativeClient::new(&saved_config.server) {
+            if let Ok(client) = NativeClient::new(&saved_session.server) {
                 let generation = {
                     let mut state = app_state.borrow_mut();
                     state.active_generation += 1;
@@ -3654,7 +3667,7 @@ fn build_ui(app: &adw::Application) {
                 spawn_restore_session(
                     tx.clone(),
                     generation,
-                    saved_config.username.clone(),
+                    saved_session.username,
                     client,
                     saved_token,
                     preferred_channel_id,

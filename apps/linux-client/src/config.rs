@@ -8,11 +8,80 @@ const APP_CONFIG_DIR: &str = "sharkord-linux-client";
 const APP_CONFIG_FILE: &str = "config.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SavedSession {
+    pub server: String,
+    pub username: String,
+    #[serde(default)]
+    pub auth_token: Option<String>,
+    #[serde(default)]
+    pub last_channel_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StoredConfig {
     pub server: String,
     pub username: String,
+    #[serde(default)]
     pub auth_token: Option<String>,
+    #[serde(default)]
     pub last_channel_id: Option<u64>,
+    #[serde(default)]
+    pub sessions: Vec<SavedSession>,
+}
+
+impl StoredConfig {
+    pub fn saved_session(&self, server: &str, username: &str) -> Option<&SavedSession> {
+        self.sessions
+            .iter()
+            .find(|session| session.server == server && session.username == username)
+    }
+
+    pub fn upsert_saved_session(&mut self, saved_session: SavedSession) {
+        if let Some(existing_session) = self.sessions.iter_mut().find(|session| {
+            session.server == saved_session.server && session.username == saved_session.username
+        }) {
+            *existing_session = saved_session;
+        } else {
+            self.sessions.push(saved_session);
+        }
+    }
+
+    pub fn clear_saved_session(&mut self, server: &str, username: &str) {
+        if let Some(existing_session) = self
+            .sessions
+            .iter_mut()
+            .find(|session| session.server == server && session.username == username)
+        {
+            existing_session.auth_token = None;
+            existing_session.last_channel_id = None;
+        }
+    }
+
+    pub fn selected_saved_session(&self) -> Option<SavedSession> {
+        self.saved_session(&self.server, &self.username)
+            .cloned()
+            .or_else(|| {
+                (!self.server.is_empty() || !self.username.is_empty()).then_some(SavedSession {
+                    server: self.server.clone(),
+                    username: self.username.clone(),
+                    auth_token: self.auth_token.clone(),
+                    last_channel_id: self.last_channel_id,
+                })
+            })
+    }
+
+    fn normalize_legacy_fields(&mut self) {
+        if !self.server.is_empty() || !self.username.is_empty() {
+            let legacy_session = SavedSession {
+                server: self.server.clone(),
+                username: self.username.clone(),
+                auth_token: self.auth_token.clone(),
+                last_channel_id: self.last_channel_id,
+            };
+
+            self.upsert_saved_session(legacy_session);
+        }
+    }
 }
 
 fn config_dir() -> Result<PathBuf> {
@@ -38,8 +107,9 @@ pub fn load_config() -> Result<Option<StoredConfig>> {
 
     let content = fs::read_to_string(&path)
         .with_context(|| format!("failed to read config file at {}", path.display()))?;
-    let parsed = serde_json::from_str(&content)
+    let mut parsed: StoredConfig = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse config file at {}", path.display()))?;
+    parsed.normalize_legacy_fields();
 
     Ok(Some(parsed))
 }

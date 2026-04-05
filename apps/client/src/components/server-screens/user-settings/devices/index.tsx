@@ -235,6 +235,9 @@ const Devices = memo(() => {
   }, []);
 
   const hasMicrophones = inputDevices.length > 0;
+  const hasDefaultMicrophoneOption = inputDevices.some(
+    (device) => device?.deviceId === DEFAULT_NAME
+  );
   const hasDefaultPlaybackOption = playbackDevices.some(
     (device) => device?.deviceId === DEFAULT_NAME
   );
@@ -345,13 +348,20 @@ const Devices = memo(() => {
                 updateDeviceSettings({ microphoneId: value })
               }
               value={values.microphoneId}
-              disabled={inputDevices.length === 0}
+              disabled={
+                !hasDefaultMicrophoneOption && inputDevices.length === 0
+              }
             >
               <SelectTrigger className="w-92">
                 <SelectValue placeholder={t('microphonePlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
+                  {!hasDefaultMicrophoneOption && (
+                    <SelectItem value={DEFAULT_NAME}>
+                      {t('defaultMicrophone')}
+                    </SelectItem>
+                  )}
                   {inputDevices.map((device) => (
                     <SelectItem
                       key={device?.deviceId}

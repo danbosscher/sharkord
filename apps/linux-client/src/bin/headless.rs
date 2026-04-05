@@ -235,7 +235,7 @@ async fn main() -> Result<()> {
 
     if let Some(message) = &config.send_message {
         let sent = client
-            .send_message(&token, selected_channel_id, message, None, None)
+            .send_message(&token, selected_channel_id, message, &[], None, None)
             .await?;
 
         println!("Sent message id {}", sent.message_id);

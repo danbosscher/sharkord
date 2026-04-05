@@ -3,6 +3,8 @@ use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NativeChannel {
@@ -41,6 +43,15 @@ pub struct NativeFile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct NativeTempFile {
+    pub id: String,
+    #[serde(rename = "originalName")]
+    pub original_name: String,
+    pub size: u64,
+    pub extension: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct NativeBootstrap {
     #[serde(rename = "serverName")]
     pub server_name: String,
@@ -48,6 +59,8 @@ pub struct NativeBootstrap {
     pub own_user_id: u64,
     pub channels: Vec<NativeChannel>,
     pub users: Vec<NativeUser>,
+    #[serde(rename = "readStates", default)]
+    pub read_states: BTreeMap<u64, u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -303,6 +316,7 @@ impl NativeClient {
         token: &str,
         channel_id: u64,
         content: &str,
+        files: &[String],
         parent_message_id: Option<u64>,
         reply_to_message_id: Option<u64>,
     ) -> Result<SendMessageResponse> {
@@ -313,7 +327,7 @@ impl NativeClient {
             .json(&json!({
                 "channelId": channel_id,
                 "content": content,
-                "files": [],
+                "files": files,
                 "parentMessageId": parent_message_id,
                 "replyToMessageId": reply_to_message_id
             }))
@@ -330,6 +344,59 @@ impl NativeClient {
             .json()
             .await
             .context("failed to decode send response")
+    }
+
+    pub async fn upload_temp_file(&self, token: &str, file_path: &Path) -> Result<NativeTempFile> {
+        let file_name = file_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| anyhow!("invalid file path"))?
+            .to_string();
+
+        let bytes = std::fs::read(file_path).context("failed to read file bytes")?;
+        let content_length = bytes.len();
+
+        let response = self
+            .http
+            .post(format!("{}/upload", self.base_url))
+            .header(CONTENT_TYPE, "application/octet-stream")
+            .header("x-file-name", file_name)
+            .header("x-token", token)
+            .header("content-length", content_length.to_string())
+            .body(bytes)
+            .send()
+            .await
+            .context("failed to call /upload")?;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("file upload failed: {body}"));
+        }
+
+        response
+            .json()
+            .await
+            .context("failed to decode temp file response")
+    }
+
+    pub async fn delete_temp_file(&self, token: &str, file_id: &str) -> Result<()> {
+        let response = self
+            .http
+            .post(format!("{}/native/files/delete-temporary", self.base_url))
+            .header(AUTHORIZATION, bearer(token))
+            .json(&json!({
+                "fileId": file_id
+            }))
+            .send()
+            .await
+            .context("failed to call /native/files/delete-temporary")?;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("temporary file delete failed: {body}"));
+        }
+
+        Ok(())
     }
 
     pub async fn search_messages(&self, token: &str, query: &str) -> Result<NativeSearchResults> {

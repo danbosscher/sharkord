@@ -17,6 +17,7 @@ import { loginRouteHandler } from './login';
 import { manifestRouteHandler } from './manifest';
 import {
   nativeBootstrapRouteHandler,
+  nativeDeleteTemporaryFileRouteHandler,
   nativeDeleteMessageRouteHandler,
   nativeEditMessageRouteHandler,
   nativeEventsRouteHandler,
@@ -78,7 +79,9 @@ const routeHandlers: Partial<
       '/native/messages/edit': (req, res) =>
         nativeEditMessageRouteHandler(req, res),
       '/native/messages/delete': (req, res) =>
-        nativeDeleteMessageRouteHandler(req, res)
+        nativeDeleteMessageRouteHandler(req, res),
+      '/native/files/delete-temporary': (req, res) =>
+        nativeDeleteTemporaryFileRouteHandler(req, res)
     },
     prefix: {}
   }

@@ -4,10 +4,11 @@ use gtk::glib;
 use sharkord_linux_client::config::{StoredConfig, load_config, save_config};
 use sharkord_linux_client::native_client::{
     NativeBootstrap, NativeClient, NativeEventEnvelope, NativeFile, NativeMessage,
-    NativeMessagesResponse, NativeSearchResults, text_channels,
+    NativeMessagesResponse, NativeSearchResults, NativeTempFile, text_channels,
 };
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -37,7 +38,9 @@ struct AppState {
     editing_message_id: Option<u64>,
     current_thread_parent_message_id: Option<u64>,
     replying_to: Option<ReplyTarget>,
-    unread_channel_ids: BTreeSet<u64>,
+    pending_uploads: Vec<NativeTempFile>,
+    unread_channel_counts: BTreeMap<u64, u64>,
+    upload_in_flight: bool,
     reconnect_in_flight: bool,
     restore_in_flight: bool,
     session: Option<SessionState>,
@@ -67,6 +70,10 @@ enum UiMessage {
         generation: u64,
         parent_message: NativeMessage,
         messages: NativeMessagesResponse,
+    },
+    TempFileUploaded {
+        generation: u64,
+        temp_file: NativeTempFile,
     },
     Event {
         generation: u64,
@@ -140,6 +147,14 @@ fn truncate_preview(input: &str) -> String {
 
     let truncated = input.chars().take(MAX_LEN).collect::<String>();
     format!("{truncated}…")
+}
+
+fn unread_channel_counts_from_bootstrap(bootstrap: &NativeBootstrap) -> BTreeMap<u64, u64> {
+    bootstrap
+        .read_states
+        .iter()
+        .filter_map(|(channel_id, count)| (*count > 0).then_some((*channel_id, *count)))
+        .collect()
 }
 
 fn user_display_name(bootstrap: &NativeBootstrap, user_id: u64) -> String {
@@ -296,6 +311,115 @@ fn append_file_attachments(
     }
 
     container.append(&attachments_box);
+}
+
+fn render_pending_uploads(
+    attachments_box: &gtk::Box,
+    app_state: &Rc<RefCell<AppState>>,
+    tx: &mpsc::Sender<UiMessage>,
+    status_label: &gtk::Label,
+) {
+    while let Some(child) = attachments_box.first_child() {
+        attachments_box.remove(&child);
+    }
+
+    let pending_uploads = app_state.borrow().pending_uploads.clone();
+
+    if pending_uploads.is_empty() {
+        attachments_box.set_visible(false);
+        return;
+    }
+
+    attachments_box.set_visible(true);
+
+    for temp_file in pending_uploads {
+        let row = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(8)
+            .build();
+
+        let text_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(2)
+            .hexpand(true)
+            .build();
+
+        let name_label = gtk::Label::builder()
+            .xalign(0.0)
+            .wrap(true)
+            .label(&temp_file.original_name)
+            .build();
+
+        let meta_label = gtk::Label::builder()
+            .xalign(0.0)
+            .wrap(true)
+            .css_classes(["caption", "dim-label"])
+            .label(format!(
+                "{}{}",
+                format_file_size(temp_file.size),
+                if temp_file.extension.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · {}", temp_file.extension)
+                }
+            ))
+            .build();
+
+        let remove_button = gtk::Button::builder().label("Remove").build();
+
+        {
+            let app_state = Rc::clone(app_state);
+            let tx = tx.clone();
+            let status_label = status_label.clone();
+            let attachments_box = attachments_box.clone();
+            let file_id = temp_file.id.clone();
+
+            remove_button.connect_clicked(move |_| {
+                let deletion = {
+                    let mut state = app_state.borrow_mut();
+                    let index = state
+                        .pending_uploads
+                        .iter()
+                        .position(|file| file.id == file_id);
+
+                    let Some(index) = index else {
+                        status_label.set_text("Attachment was already removed.");
+                        return;
+                    };
+
+                    let removed = state.pending_uploads.remove(index);
+                    let session = state.session.as_ref().map(|session| {
+                        (
+                            session.client.clone(),
+                            session.token.clone(),
+                            session.generation,
+                        )
+                    });
+
+                    (removed, session)
+                };
+
+                render_pending_uploads(&attachments_box, &app_state, &tx, &status_label);
+                status_label.set_text("Removed staged attachment.");
+
+                if let Some((client, token, generation)) = deletion.1 {
+                    spawn_delete_temporary_file(
+                        tx.clone(),
+                        generation,
+                        client,
+                        token,
+                        deletion.0.id,
+                    );
+                }
+            });
+        }
+
+        text_box.append(&name_label);
+        text_box.append(&meta_label);
+        row.append(&text_box);
+        row.append(&remove_button);
+        attachments_box.append(&row);
+    }
 }
 
 fn set_compose_mode_ui(
@@ -477,7 +601,7 @@ fn populate_channel_list(
     channel_list: &gtk::ListBox,
     bootstrap: &NativeBootstrap,
     selected_channel_id: u64,
-    unread_channel_ids: &BTreeSet<u64>,
+    unread_channel_counts: &BTreeMap<u64, u64>,
 ) {
     while let Some(child) = channel_list.first_child() {
         channel_list.remove(&child);
@@ -488,12 +612,12 @@ fn populate_channel_list(
         let channel_name = channel
             .name
             .unwrap_or_else(|| format!("channel-{}", channel.id));
-        let label_text =
-            if unread_channel_ids.contains(&channel.id) && channel.id != selected_channel_id {
-                format!("• {channel_name}")
-            } else {
-                channel_name
-            };
+        let unread_count = unread_channel_counts.get(&channel.id).copied().unwrap_or(0);
+        let label_text = if unread_count > 0 && channel.id != selected_channel_id {
+            format!("• {channel_name} ({unread_count})")
+        } else {
+            channel_name
+        };
         let label = gtk::Label::builder()
             .xalign(0.0)
             .wrap(true)
@@ -1837,6 +1961,7 @@ fn spawn_send_message(
     token: String,
     channel_id: u64,
     content: String,
+    files: Vec<String>,
     thread_parent_message_id: Option<u64>,
     reply_to_message_id: Option<u64>,
 ) {
@@ -1850,6 +1975,7 @@ fn spawn_send_message(
                         &token,
                         channel_id,
                         &content,
+                        &files,
                         thread_parent_message_id,
                         reply_to_message_id,
                     )
@@ -1891,6 +2017,60 @@ fn spawn_send_message(
                     message: error.to_string(),
                 });
             }
+        }
+    });
+}
+
+fn spawn_upload_temporary_file(
+    tx: mpsc::Sender<UiMessage>,
+    generation: u64,
+    client: NativeClient,
+    token: String,
+    file_path: PathBuf,
+) {
+    std::thread::spawn(move || {
+        let result: Result<_> = (|| {
+            let runtime = tokio::runtime::Runtime::new()?;
+
+            runtime.block_on(async move { client.upload_temp_file(&token, &file_path).await })
+        })();
+
+        match result {
+            Ok(temp_file) => {
+                let _ = tx.send(UiMessage::TempFileUploaded {
+                    generation,
+                    temp_file,
+                });
+            }
+            Err(error) => {
+                let _ = tx.send(UiMessage::Error {
+                    generation,
+                    message: error.to_string(),
+                });
+            }
+        }
+    });
+}
+
+fn spawn_delete_temporary_file(
+    tx: mpsc::Sender<UiMessage>,
+    generation: u64,
+    client: NativeClient,
+    token: String,
+    file_id: String,
+) {
+    std::thread::spawn(move || {
+        let result: Result<_> = (|| {
+            let runtime = tokio::runtime::Runtime::new()?;
+
+            runtime.block_on(async move { client.delete_temp_file(&token, &file_id).await })
+        })();
+
+        if let Err(error) = result {
+            let _ = tx.send(UiMessage::Error {
+                generation,
+                message: error.to_string(),
+            });
         }
     });
 }
@@ -2172,6 +2352,12 @@ fn build_ui(app: &adw::Application) {
         .build();
     compose_entry.set_sensitive(false);
 
+    let pending_attachments_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(6)
+        .visible(false)
+        .build();
+
     let compose_context_label = gtk::Label::builder()
         .xalign(0.0)
         .wrap(true)
@@ -2206,6 +2392,9 @@ fn build_ui(app: &adw::Application) {
 
     let cancel_edit_button = gtk::Button::builder().label("Cancel Edit").build();
     cancel_edit_button.set_sensitive(false);
+
+    let attach_button = gtk::Button::builder().label("Add File").build();
+    attach_button.set_sensitive(false);
 
     let connection_box = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -2299,6 +2488,7 @@ fn build_ui(app: &adw::Application) {
         .spacing(12)
         .build();
     compose_box.append(&compose_entry);
+    compose_box.append(&attach_button);
     compose_box.append(&send_button);
     compose_box.append(&cancel_edit_button);
 
@@ -2315,6 +2505,7 @@ fn build_ui(app: &adw::Application) {
     right_column.append(&search_box);
     right_column.append(&content_stack);
     right_column.append(&compose_context_label);
+    right_column.append(&pending_attachments_box);
     right_column.append(&compose_box);
 
     let paned = gtk::Paned::builder()
@@ -2353,6 +2544,7 @@ fn build_ui(app: &adw::Application) {
         let server_password_entry = server_password_entry.clone();
         let status_label = status_label.clone();
         let connect_button = connect_button.clone();
+        let pending_attachments_box = pending_attachments_box.clone();
 
         connect_button.clone().connect_clicked(move |_| {
             let server = server_entry.text().trim().to_string();
@@ -2368,10 +2560,13 @@ fn build_ui(app: &adw::Application) {
             let generation = {
                 let mut state = app_state.borrow_mut();
                 state.active_generation += 1;
+                state.pending_uploads.clear();
+                state.upload_in_flight = false;
                 state.active_generation
             };
 
             connect_button.set_sensitive(false);
+            render_pending_uploads(&pending_attachments_box, &app_state, &tx, &status_label);
             status_label.set_text("Connecting...");
 
             spawn_connect(
@@ -2485,7 +2680,7 @@ fn build_ui(app: &adw::Application) {
                     &channel_list_for_selection,
                     &session.bootstrap,
                     channel_id,
-                    &app_state.borrow().unread_channel_ids,
+                    &app_state.borrow().unread_channel_counts,
                 );
             }
             content_stack.set_visible_child_name("timeline");
@@ -2497,18 +2692,102 @@ fn build_ui(app: &adw::Application) {
     {
         let tx = tx.clone();
         let app_state = Rc::clone(&app_state);
+        let window = window.clone();
+        let status_label = status_label.clone();
+        let attach_button = attach_button.clone();
+        let pending_attachments_box = pending_attachments_box.clone();
+
+        attach_button.clone().connect_clicked(move |_| {
+            {
+                let state = app_state.borrow();
+
+                if state.session.is_none() {
+                    status_label.set_text("Not connected.");
+                    return;
+                }
+
+                if state.upload_in_flight {
+                    status_label.set_text("Attachment upload already in progress.");
+                    return;
+                }
+
+                if state.editing_message_id.is_some() {
+                    status_label.set_text("Attachments are disabled while editing a message.");
+                    return;
+                }
+            }
+
+            let dialog = gtk::FileDialog::builder()
+                .title("Attach file")
+                .accept_label("Attach")
+                .modal(true)
+                .build();
+
+            let app_state = Rc::clone(&app_state);
+            let tx = tx.clone();
+            let status_label = status_label.clone();
+            let attach_button = attach_button.clone();
+            let pending_attachments_box = pending_attachments_box.clone();
+            let window = window.clone();
+
+            glib::MainContext::default().spawn_local(async move {
+                let Ok(file) = dialog.open_future(Some(&window)).await else {
+                    return;
+                };
+
+                let Some(file_path) = file.path() else {
+                    status_label.set_text("Selected file is not a local path.");
+                    return;
+                };
+
+                let file_name = file_path
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("selected file")
+                    .to_string();
+
+                let (client, token, generation) = {
+                    let mut state = app_state.borrow_mut();
+
+                    if state.upload_in_flight {
+                        status_label.set_text("Attachment upload already in progress.");
+                        return;
+                    }
+
+                    let Some(session) = state.session.as_ref() else {
+                        status_label.set_text("Not connected.");
+                        return;
+                    };
+
+                    let client = session.client.clone();
+                    let token = session.token.clone();
+                    let generation = session.generation;
+
+                    state.upload_in_flight = true;
+
+                    (client, token, generation)
+                };
+
+                attach_button.set_sensitive(false);
+                render_pending_uploads(&pending_attachments_box, &app_state, &tx, &status_label);
+                status_label.set_text(&format!("Uploading {}...", file_name));
+                spawn_upload_temporary_file(tx.clone(), generation, client, token, file_path);
+            });
+        });
+    }
+
+    {
+        let tx = tx.clone();
+        let app_state = Rc::clone(&app_state);
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
         let compose_context_label = compose_context_label.clone();
         let status_label = status_label.clone();
+        let pending_attachments_box = pending_attachments_box.clone();
 
         send_button.clone().connect_clicked(move |_| {
             let content = compose_entry.text().trim().to_string();
-
-            if content.is_empty() {
-                return;
-            }
 
             let (
                 client,
@@ -2518,12 +2797,18 @@ fn build_ui(app: &adw::Application) {
                 editing_message_id,
                 current_thread_parent_message_id,
                 reply_target,
+                pending_upload_ids,
             ) = {
                 let mut state = app_state.borrow_mut();
                 let Some(session) = state.session.as_ref() else {
                     status_label.set_text("Not connected.");
                     return;
                 };
+
+                if state.upload_in_flight {
+                    status_label.set_text("Wait for the attachment upload to finish.");
+                    return;
+                }
 
                 let client = session.client.clone();
                 let token = session.token.clone();
@@ -2532,7 +2817,30 @@ fn build_ui(app: &adw::Application) {
                 let current_thread_parent_message_id = state.current_thread_parent_message_id;
                 let editing_message_id = state.editing_message_id.take();
                 let reply_target = state.replying_to.clone();
+                let pending_upload_ids = state
+                    .pending_uploads
+                    .iter()
+                    .map(|file| file.id.clone())
+                    .collect::<Vec<_>>();
+
+                if content.is_empty() && pending_upload_ids.is_empty() {
+                    if editing_message_id.is_some() {
+                        state.editing_message_id = editing_message_id;
+                    }
+
+                    return;
+                }
+
+                if editing_message_id.is_some() && !pending_upload_ids.is_empty() {
+                    state.editing_message_id = editing_message_id;
+                    status_label.set_text("Remove staged attachments before saving an edit.");
+                    return;
+                }
+
                 state.replying_to = None;
+                if editing_message_id.is_none() {
+                    state.pending_uploads.clear();
+                }
 
                 (
                     client,
@@ -2542,6 +2850,7 @@ fn build_ui(app: &adw::Application) {
                     editing_message_id,
                     current_thread_parent_message_id,
                     reply_target,
+                    pending_upload_ids,
                 )
             };
 
@@ -2552,6 +2861,7 @@ fn build_ui(app: &adw::Application) {
                 &cancel_edit_button,
                 &compose_context_label,
             );
+            render_pending_uploads(&pending_attachments_box, &app_state, &tx, &status_label);
 
             if let Some(message_id) = editing_message_id {
                 status_label.set_text(&format!("Saving edit for message {}...", message_id));
@@ -2578,6 +2888,7 @@ fn build_ui(app: &adw::Application) {
                     token,
                     channel_id,
                     content,
+                    pending_upload_ids,
                     reply_target
                         .as_ref()
                         .and_then(|target| target.parent_message_id)
@@ -2726,6 +3037,8 @@ fn build_ui(app: &adw::Application) {
         let thread_back_button = thread_back_button.clone();
         let refresh_button = refresh_button.clone();
         let reconnect_button = reconnect_button.clone();
+        let attach_button = attach_button.clone();
+        let pending_attachments_box = pending_attachments_box.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
         let compose_context_label = compose_context_label.clone();
@@ -2777,8 +3090,11 @@ fn build_ui(app: &adw::Application) {
                             state.editing_message_id = None;
                             state.replying_to = None;
                             state.current_thread_parent_message_id = None;
+                            state.upload_in_flight = false;
                             state.reconnect_in_flight = false;
                             state.restore_in_flight = false;
+                            state.unread_channel_counts =
+                                unread_channel_counts_from_bootstrap(&bootstrap);
                             state.session = Some(SessionState {
                                 generation,
                                 username,
@@ -2798,6 +3114,7 @@ fn build_ui(app: &adw::Application) {
                         refresh_button.set_sensitive(true);
                         reconnect_button.set_sensitive(true);
                         send_button.set_sensitive(true);
+                        attach_button.set_sensitive(true);
                         status_label.set_text("Connected");
                         server_label.set_text(&format!(
                             "{} · {} visible users",
@@ -2833,7 +3150,13 @@ fn build_ui(app: &adw::Application) {
                             &channel_list,
                             &bootstrap,
                             initial_channel_id,
-                            &app_state.borrow().unread_channel_ids,
+                            &app_state.borrow().unread_channel_counts,
+                        );
+                        render_pending_uploads(
+                            &pending_attachments_box,
+                            &app_state,
+                            &tx_for_events,
+                            &status_label,
                         );
 
                         if let Some(session) = app_state.borrow().session.as_ref() {
@@ -2859,7 +3182,7 @@ fn build_ui(app: &adw::Application) {
                                 state.editing_message_id = None;
                                 state.replying_to = None;
                                 state.current_thread_parent_message_id = None;
-                                state.unread_channel_ids.remove(&channel_id);
+                                state.unread_channel_counts.remove(&channel_id);
                             }
 
                             is_current
@@ -2905,7 +3228,7 @@ fn build_ui(app: &adw::Application) {
                             &channel_list,
                             &bootstrap,
                             channel_id,
-                            &app_state.borrow().unread_channel_ids,
+                            &app_state.borrow().unread_channel_counts,
                         );
                         status_label.set_text("Synced");
                     }
@@ -3011,6 +3334,40 @@ fn build_ui(app: &adw::Application) {
                         content_stack.set_visible_child_name("thread");
                         status_label.set_text("Thread synced");
                     }
+                    UiMessage::TempFileUploaded {
+                        generation,
+                        temp_file,
+                    } => {
+                        let is_current = {
+                            let mut state = app_state.borrow_mut();
+                            let Some(session) = state.session.as_ref() else {
+                                continue;
+                            };
+
+                            let is_current = generation == state.active_generation
+                                && generation == session.generation;
+
+                            if is_current {
+                                state.upload_in_flight = false;
+                                state.pending_uploads.push(temp_file.clone());
+                            }
+
+                            is_current
+                        };
+
+                        if !is_current {
+                            continue;
+                        }
+
+                        attach_button.set_sensitive(true);
+                        render_pending_uploads(
+                            &pending_attachments_box,
+                            &app_state,
+                            &tx_for_events,
+                            &status_label,
+                        );
+                        status_label.set_text(&format!("Attached {}", temp_file.original_name));
+                    }
                     UiMessage::Event { generation, event } => {
                         let window_active = window.is_active();
                         let event_channel_id = event
@@ -3029,63 +3386,118 @@ fn build_ui(app: &adw::Application) {
                             let current_thread_parent_message_id =
                                 state.current_thread_parent_message_id;
 
-                            match state.session.as_ref().map(|session| {
-                                (
-                                    session.client.clone(),
-                                    session.token.clone(),
-                                    session.selected_channel_id,
-                                    session.generation,
-                                    session.bootstrap.clone(),
-                                )
-                            }) {
-                                Some((
-                                    client,
-                                    token,
-                                    selected_channel_id,
-                                    session_generation,
-                                    bootstrap,
-                                )) if generation == state.active_generation
-                                    && generation == session_generation
-                                    && matches!(
-                                        event.event_type.as_str(),
-                                        "newMessage" | "messageUpdate" | "messageDelete"
-                                    ) =>
-                                {
-                                    if let (Some(channel_id), Some(message)) =
-                                        (event_channel_id, new_message.as_ref())
-                                    {
-                                        if message.user_id != bootstrap.own_user_id
-                                            && (channel_id != selected_channel_id || !window_active)
-                                        {
-                                            state.unread_channel_ids.insert(channel_id);
-                                            unread_channel_update =
-                                                Some((bootstrap.clone(), selected_channel_id));
-                                            notification = Some((
-                                                message.id,
-                                                format!(
-                                                    "{} in {}",
-                                                    user_display_name(&bootstrap, message.user_id),
-                                                    active_text_channel_name(
-                                                        &bootstrap, channel_id
-                                                    )
-                                                ),
-                                                truncate_preview(&strip_html(&message.content)),
+                            match event.event_type.as_str() {
+                                "channelReadStatesUpdate" => {
+                                    if let (Some(channel_id), Some(count)) = (
+                                        event_channel_id,
+                                        event.payload.get("count").and_then(|value| value.as_u64()),
+                                    ) {
+                                        if count == 0 {
+                                            state.unread_channel_counts.remove(&channel_id);
+                                        } else {
+                                            state.unread_channel_counts.insert(channel_id, count);
+                                        }
+
+                                        if let Some(session) = state.session.as_ref() {
+                                            unread_channel_update = Some((
+                                                session.bootstrap.clone(),
+                                                session.selected_channel_id,
                                             ));
                                         }
                                     }
 
-                                    if event_channel_id != Some(selected_channel_id) {
-                                        None
-                                    } else {
-                                        Some((
-                                            client,
-                                            token,
-                                            selected_channel_id,
-                                            current_thread_parent_message_id,
-                                        ))
-                                    }
+                                    None
                                 }
-                                _ => None,
+                                "channelReadStatesDelta" => {
+                                    if let (Some(channel_id), Some(delta)) = (
+                                        event_channel_id,
+                                        event.payload.get("delta").and_then(|value| value.as_i64()),
+                                    ) {
+                                        let next_count = state
+                                            .unread_channel_counts
+                                            .get(&channel_id)
+                                            .copied()
+                                            .unwrap_or(0)
+                                            as i64
+                                            + delta;
+
+                                        if next_count <= 0 {
+                                            state.unread_channel_counts.remove(&channel_id);
+                                        } else {
+                                            state
+                                                .unread_channel_counts
+                                                .insert(channel_id, next_count as u64);
+                                        }
+
+                                        if let Some(session) = state.session.as_ref() {
+                                            unread_channel_update = Some((
+                                                session.bootstrap.clone(),
+                                                session.selected_channel_id,
+                                            ));
+                                        }
+                                    }
+
+                                    None
+                                }
+                                _ => match state.session.as_ref().map(|session| {
+                                    (
+                                        session.client.clone(),
+                                        session.token.clone(),
+                                        session.selected_channel_id,
+                                        session.generation,
+                                        session.bootstrap.clone(),
+                                    )
+                                }) {
+                                    Some((
+                                        client,
+                                        token,
+                                        selected_channel_id,
+                                        session_generation,
+                                        bootstrap,
+                                    )) if generation == state.active_generation
+                                        && generation == session_generation
+                                        && matches!(
+                                            event.event_type.as_str(),
+                                            "newMessage" | "messageUpdate" | "messageDelete"
+                                        ) =>
+                                    {
+                                        if let (Some(channel_id), Some(message)) =
+                                            (event_channel_id, new_message.as_ref())
+                                        {
+                                            if message.user_id != bootstrap.own_user_id
+                                                && (channel_id != selected_channel_id
+                                                    || !window_active)
+                                            {
+                                                notification = Some((
+                                                    message.id,
+                                                    format!(
+                                                        "{} in {}",
+                                                        user_display_name(
+                                                            &bootstrap,
+                                                            message.user_id
+                                                        ),
+                                                        active_text_channel_name(
+                                                            &bootstrap, channel_id
+                                                        )
+                                                    ),
+                                                    truncate_preview(&strip_html(&message.content)),
+                                                ));
+                                            }
+                                        }
+
+                                        if event_channel_id != Some(selected_channel_id) {
+                                            None
+                                        } else {
+                                            Some((
+                                                client,
+                                                token,
+                                                selected_channel_id,
+                                                current_thread_parent_message_id,
+                                            ))
+                                        }
+                                    }
+                                    _ => None,
+                                },
                             }
                         };
 
@@ -3094,7 +3506,7 @@ fn build_ui(app: &adw::Application) {
                                 &channel_list,
                                 &bootstrap,
                                 selected_channel_id,
-                                &app_state.borrow().unread_channel_ids,
+                                &app_state.borrow().unread_channel_counts,
                             );
                         }
 
@@ -3187,18 +3599,31 @@ fn build_ui(app: &adw::Application) {
                             let restore_failed = {
                                 let mut state = app_state.borrow_mut();
                                 let restore_failed = state.restore_in_flight;
+                                let upload_in_flight = state.upload_in_flight;
                                 state.reconnect_in_flight = false;
                                 state.restore_in_flight = false;
-                                restore_failed
+                                state.upload_in_flight = false;
+                                (restore_failed, upload_in_flight)
                             };
 
                             connect_button.set_sensitive(true);
                             reconnect_button.set_sensitive(true);
-                            if restore_failed {
+                            attach_button.set_sensitive(app_state.borrow().session.is_some());
+                            render_pending_uploads(
+                                &pending_attachments_box,
+                                &app_state,
+                                &tx_for_events,
+                                &status_label,
+                            );
+                            if restore_failed.0 {
                                 clear_saved_session_token(
                                     &server_entry.text(),
                                     &username_entry.text(),
                                 );
+                            }
+                            if restore_failed.1 {
+                                status_label.set_text(&format!("Upload failed: {message}"));
+                                continue;
                             }
                             status_label.set_text(&message);
                         }

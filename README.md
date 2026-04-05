@@ -71,6 +71,19 @@ Once the server is running, open your web browser and navigate to [http://localh
 
 Check out our [Documentation](https://sharkord.com/docs) for more detailed setup instructions, configuration options, and troubleshooting tips.
 
+## Private Join Shortcut
+
+For this fork's small trusted-group deployment, the browser client also accepts a temporary server-password shortcut in the URL:
+
+```text
+https://chat.example.org/?serverpassword=example
+```
+
+After account login, Sharkord will try that password automatically for the server join step and then remove `serverpassword` from the address bar.
+
+> [!WARNING]
+> This is intentionally low-friction, not high-security. Query parameters leak into browser history, screenshots, copied links, and sometimes proxy or analytics logs. Use this only for a tiny private server where everyone already has the shared password anyway. If this deployment grows beyond that, replace it with a signed invite token flow instead of shipping the raw server password in the URL.
+
 ## Plugin-First Recommendations
 
 For a small private group, this fork keeps core focused on reliability, voice, chat, and moderation basics. Extra "Discord toy" features should stay plugin-first unless they become critical to the core product.

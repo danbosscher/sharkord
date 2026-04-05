@@ -22,6 +22,25 @@ import { type TDisconnectInfo } from './types';
 let unsubscribeFromServer: (() => void) | null = null;
 let connectInFlight: Promise<void> | null = null;
 
+const getServerPasswordFromQuery = (): string | undefined => {
+  const serverPassword = new URLSearchParams(window.location.search).get(
+    'serverpassword'
+  );
+
+  return serverPassword || undefined;
+};
+
+const clearServerPasswordFromQuery = () => {
+  const url = new URL(window.location.href);
+
+  if (!url.searchParams.has('serverpassword')) {
+    return;
+  }
+
+  url.searchParams.delete('serverpassword');
+  window.history.replaceState({}, document.title, url.toString());
+};
+
 export const clearServerSubscriptions = () => {
   unsubscribeFromServer?.();
   unsubscribeFromServer = null;
@@ -79,8 +98,21 @@ const performConnect = async () => {
   const trpc = await connectToTRPC(host);
 
   const { hasPassword, handshakeHash } = await trpc.others.handshake.query();
+  const sharedServerPassword = getServerPasswordFromQuery();
 
   if (hasPassword) {
+    if (sharedServerPassword) {
+      clearServerPasswordFromQuery();
+
+      try {
+        await joinServer(handshakeHash, sharedServerPassword);
+        return;
+      } catch {
+        // Fall back to the normal password prompt when the shared link carries
+        // an outdated or incorrect server password.
+      }
+    }
+
     // show password prompt
     openDialog(Dialog.SERVER_PASSWORD, { handshakeHash, serverId });
     return;

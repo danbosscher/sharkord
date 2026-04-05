@@ -219,6 +219,7 @@ fn populate_search_results(
     app_state: &Rc<RefCell<AppState>>,
     tx: &mpsc::Sender<UiMessage>,
     navigation_ui: &NavigationUi,
+    thread_ui: &ThreadUi,
 ) {
     clear_list_box(list_box);
 
@@ -268,6 +269,7 @@ fn populate_search_results(
                 .build();
 
             let open_button = gtk::Button::builder().label("Open").build();
+            let open_thread_button = gtk::Button::builder().label("Thread").build();
 
             {
                 let app_state = Rc::clone(app_state);
@@ -324,9 +326,68 @@ fn populate_search_results(
                 });
             }
 
+            {
+                let app_state = Rc::clone(app_state);
+                let tx = tx.clone();
+                let channel_id = message.channel_id;
+                let thread_parent_message_id = message.parent_message_id.unwrap_or(message.id);
+                let channel_name = message.channel_name.clone();
+                let (
+                    status_label,
+                    channel_label,
+                    channel_list,
+                    _content_stack,
+                    compose_entry,
+                    send_button,
+                    cancel_edit_button,
+                ) = navigation_ui.clone();
+                let (thread_header_label, _thread_list, thread_stack, _, _, _) = thread_ui.clone();
+
+                open_thread_button.connect_clicked(move |_| {
+                    let (client, token, generation, bootstrap) = {
+                        let mut state = app_state.borrow_mut();
+                        state.editing_message_id = None;
+                        state.current_thread_parent_message_id = Some(thread_parent_message_id);
+
+                        let Some(session) = state.session.as_mut() else {
+                            status_label.set_text("Not connected.");
+                            return;
+                        };
+
+                        session.selected_channel_id = channel_id;
+
+                        (
+                            session.client.clone(),
+                            session.token.clone(),
+                            session.generation,
+                            session.bootstrap.clone(),
+                        )
+                    };
+
+                    compose_entry.set_text("");
+                    send_button.set_label("Send");
+                    cancel_edit_button.set_sensitive(false);
+                    channel_label.set_text(&format!("Current channel: {}", channel_name));
+                    select_channel_row(&channel_list, &bootstrap, channel_id);
+                    thread_header_label
+                        .set_text(&format!("Thread for message {}", thread_parent_message_id));
+                    thread_stack.set_visible_child_name("thread");
+                    status_label
+                        .set_text(&format!("Opening thread {}...", thread_parent_message_id));
+                    spawn_fetch_thread(
+                        tx.clone(),
+                        generation,
+                        client,
+                        token,
+                        thread_parent_message_id,
+                    );
+                });
+            }
+
             container.append(&meta);
             container.append(&content);
             actions.append(&open_button);
+            actions.append(&open_thread_button);
             container.append(&actions);
             row.set_child(Some(&container));
             list_box.append(&row);
@@ -521,7 +582,6 @@ fn populate_message_list(
             .css_classes(["destructive-action"])
             .build();
         let view_thread_button = gtk::Button::builder().label("Thread").build();
-        view_thread_button.set_sensitive(message.reply_count.unwrap_or(0) > 0);
 
         {
             let app_state = Rc::clone(app_state);
@@ -585,7 +645,6 @@ fn populate_message_list(
             let app_state = Rc::clone(app_state);
             let tx = tx.clone();
             let message_id = message.id;
-            let reply_count = message.reply_count.unwrap_or(0);
             let (
                 thread_header_label,
                 _thread_list,
@@ -597,11 +656,6 @@ fn populate_message_list(
             let status_label = status_label.clone();
 
             view_thread_button.connect_clicked(move |_| {
-                if reply_count == 0 {
-                    status_label.set_text("This message has no replies yet.");
-                    return;
-                }
-
                 let (client, token, generation) = {
                     let mut state = app_state.borrow_mut();
                     let Some((client, token, generation)) = state.session.as_ref().map(|session| {
@@ -2115,6 +2169,7 @@ fn build_ui(app: &adw::Application) {
                             &app_state,
                             &tx,
                             &navigation_ui,
+                            &thread_ui,
                         );
                         content_stack.set_visible_child_name("search");
                         status_label.set_text("Search complete");

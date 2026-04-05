@@ -56,6 +56,12 @@ pub struct NativeSearchMessage {
     pub plain_content: String,
     #[serde(rename = "createdAt")]
     pub created_at: i64,
+    #[serde(rename = "parentMessageId")]
+    pub parent_message_id: Option<u64>,
+    #[serde(rename = "replyToMessageId")]
+    pub reply_to_message_id: Option<u64>,
+    #[serde(rename = "replyCount")]
+    pub reply_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -111,7 +111,7 @@ Status:
 - the first thin slice is now in place
 - the server exposes a minimal native HTTP+SSE contract for bootstrap, message fetch/send/edit/delete/search, and event streaming
 - `apps/linux-client/src/bin/headless.rs` proves that contract from a non-browser process, including one-shot message get/search/edit/delete operations
-- the GTK app now uses the same boundary for real text login, channel browsing, message loading, plain text send, explicit reply mode, inline edit/delete actions, inline reply previews with parent-message jump actions, a separate search-results view with navigation back into the live timeline, dedicated thread views with inline edit/delete on thread rows, thread replies through the compose box while a thread is open, manual refresh that respects the active root/thread view, search, token-based reconnect when the event stream drops, saved-session resume with remembered last channel, unread channel markers, and desktop notifications for new messages from other users
+- the GTK app now uses the same boundary for real text login, channel browsing, message loading, plain text send, explicit reply mode, inline edit/delete actions, inline reply previews with parent-message jump actions, attachment rows with native file-open actions, a separate search-results view with navigation back into the live timeline plus direct file-open actions, dedicated thread views with inline edit/delete on thread rows, thread replies through the compose box while a thread is open, manual refresh that respects the active root/thread view, search, token-based reconnect when the event stream drops, saved-session resume with remembered last channel, unread channel markers, and desktop notifications for new messages from other users
 
 ### Phase 2
 
@@ -124,8 +124,8 @@ Status:
 
 Status:
 
-- complete enough for a real text-client prototype, including session resume, reconnect, explicit reply targeting, thread navigation, parent-message jumps from reply previews, unread channel markers, and desktop notifications
-- still missing attachments, richer read-state UX, and live-server usability cleanup before calling the text slice "done"
+- complete enough for a real text-client prototype, including session resume, reconnect, explicit reply targeting, thread navigation, parent-message jumps from reply previews, attachment viewing, unread channel markers, and desktop notifications
+- still missing attachment upload, richer read-state UX, and live-server usability cleanup before calling the text slice "done"
 
 ### Phase 3
 
@@ -143,9 +143,9 @@ Status:
 
 ## Immediate next tasks
 
-1. Improve timeline interaction beyond the current utilitarian row list so attachments, richer reply previews, and parent-message jumps read better.
+1. Add attachment upload and a native file-picker path so the text client can participate in normal chat, not just consume existing files.
 2. Harden native text behavior against real-server usage, especially read-state, notification preferences, and awkward reconnect edge cases.
-3. Add file download/upload support so the text client can handle normal everyday chat, not just plain-text rooms.
+3. Improve timeline polish further so parent-message jumps, replies, and attachments are easier to scan in denser channels.
 4. Only after that, invest in native voice transport and richer GTK screens.
 
 ## Success criteria

@@ -3,8 +3,8 @@ use anyhow::Result;
 use gtk::glib;
 use sharkord_linux_client::config::{StoredConfig, load_config, save_config};
 use sharkord_linux_client::native_client::{
-    NativeBootstrap, NativeClient, NativeEventEnvelope, NativeMessage, NativeMessagesResponse,
-    NativeSearchResults, text_channels,
+    NativeBootstrap, NativeClient, NativeEventEnvelope, NativeFile, NativeMessage,
+    NativeMessagesResponse, NativeSearchResults, text_channels,
 };
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -170,6 +170,132 @@ fn reply_preview_text(bootstrap: &NativeBootstrap, message: &NativeMessage) -> O
     message
         .reply_to_message_id
         .map(|reply_to_message_id| format!("Replying to message #{reply_to_message_id}"))
+}
+
+fn format_file_size(size: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+
+    let mut value = size as f64;
+    let mut unit_index = 0;
+
+    while value >= 1024.0 && unit_index < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit_index += 1;
+    }
+
+    if unit_index == 0 {
+        format!("{} {}", size, UNITS[unit_index])
+    } else {
+        format!("{value:.1} {}", UNITS[unit_index])
+    }
+}
+
+fn native_file_url(base_url: &str, file: &NativeFile) -> String {
+    let mut url = format!("{}/public/{}", base_url.trim_end_matches('/'), file.name);
+
+    if let Some(access_token) = file.access_token.as_ref() {
+        url.push_str(&format!("?accessToken={access_token}"));
+
+        if let Some(expires_at) = file.access_token_expires_at {
+            url.push_str(&format!("&expires={expires_at}"));
+        }
+    }
+
+    url
+}
+
+fn open_native_file(
+    app_state: &Rc<RefCell<AppState>>,
+    status_label: &gtk::Label,
+    file: &NativeFile,
+) {
+    let base_url = {
+        let state = app_state.borrow();
+        let Some(session) = state.session.as_ref() else {
+            status_label.set_text("Not connected.");
+            return;
+        };
+
+        session.client.base_url().to_string()
+    };
+
+    let file_url = native_file_url(&base_url, file);
+
+    match gtk::gio::AppInfo::launch_default_for_uri(&file_url, None::<&gtk::gio::AppLaunchContext>)
+    {
+        Ok(_) => status_label.set_text(&format!("Opened {}", file.original_name)),
+        Err(error) => status_label.set_text(&format!("Failed to open file: {error}")),
+    }
+}
+
+fn append_file_attachments(
+    container: &gtk::Box,
+    files: &[NativeFile],
+    app_state: &Rc<RefCell<AppState>>,
+    status_label: &gtk::Label,
+) {
+    if files.is_empty() {
+        return;
+    }
+
+    let attachments_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(6)
+        .build();
+
+    for file in files {
+        let row = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(8)
+            .build();
+
+        let text_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(2)
+            .hexpand(true)
+            .build();
+
+        let name_label = gtk::Label::builder()
+            .xalign(0.0)
+            .wrap(true)
+            .label(&file.original_name)
+            .build();
+
+        let meta_label = gtk::Label::builder()
+            .xalign(0.0)
+            .wrap(true)
+            .css_classes(["caption", "dim-label"])
+            .label(format!(
+                "{}{}",
+                format_file_size(file.size),
+                if file.extension.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · .{}", file.extension)
+                }
+            ))
+            .build();
+
+        let open_button = gtk::Button::builder().label("Open File").build();
+
+        {
+            let app_state = Rc::clone(app_state);
+            let status_label = status_label.clone();
+            let file = file.clone();
+
+            open_button.connect_clicked(move |_| {
+                open_native_file(&app_state, &status_label, &file);
+            });
+        }
+
+        text_box.append(&name_label);
+        text_box.append(&meta_label);
+        row.append(&text_box);
+        row.append(&open_button);
+        attachments_box.append(&row);
+    }
+
+    container.append(&attachments_box);
 }
 
 fn set_compose_mode_ui(
@@ -643,7 +769,10 @@ fn populate_search_results(
                 .xalign(0.0)
                 .wrap(true)
                 .selectable(true)
-                .label(format!("Attached file on message {}", file.message_id))
+                .label(format!(
+                    "{} · attached on message {}",
+                    file.file.original_name, file.message_id
+                ))
                 .build();
 
             let actions = gtk::Box::builder()
@@ -652,6 +781,7 @@ fn populate_search_results(
                 .build();
 
             let open_button = gtk::Button::builder().label("Open").build();
+            let open_file_button = gtk::Button::builder().label("Open File").build();
 
             {
                 let app_state = Rc::clone(app_state);
@@ -714,9 +844,20 @@ fn populate_search_results(
                 });
             }
 
+            {
+                let app_state = Rc::clone(app_state);
+                let status_label = navigation_ui.0.clone();
+                let file = file.file.clone();
+
+                open_file_button.connect_clicked(move |_| {
+                    open_native_file(&app_state, &status_label, &file);
+                });
+            }
+
             container.append(&meta);
             container.append(&content);
             actions.append(&open_button);
+            actions.append(&open_file_button);
             container.append(&actions);
             row.set_child(Some(&container));
             list_box.append(&row);
@@ -1048,6 +1189,7 @@ fn populate_message_list(
             container.append(&reply_preview_label);
         }
         container.append(&content);
+        append_file_attachments(&container, &message.files, app_state, status_label);
         container.append(&actions);
         row.set_child(Some(&container));
         list_box.append(&row);
@@ -1264,6 +1406,7 @@ fn populate_thread_list(
         container.append(&reply_preview_label);
     }
     container.append(&content);
+    append_file_attachments(&container, &parent_message.files, app_state, status_label);
     container.append(&actions);
     row.set_child(Some(&container));
     list_box.append(&row);
@@ -1469,6 +1612,7 @@ fn populate_thread_list(
             container.append(&reply_preview_label);
         }
         container.append(&content);
+        append_file_attachments(&container, &message.files, app_state, status_label);
         container.append(&actions);
         row.set_child(Some(&container));
         list_box.append(&row);

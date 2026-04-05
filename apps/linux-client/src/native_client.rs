@@ -27,6 +27,20 @@ pub struct NativeReplyPreview {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct NativeFile {
+    pub id: u64,
+    pub name: String,
+    #[serde(rename = "originalName")]
+    pub original_name: String,
+    pub extension: String,
+    pub size: u64,
+    #[serde(rename = "_accessToken")]
+    pub access_token: Option<String>,
+    #[serde(rename = "_accessTokenExpiresAt")]
+    pub access_token_expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct NativeBootstrap {
     #[serde(rename = "serverName")]
     pub server_name: String,
@@ -52,6 +66,7 @@ pub struct NativeMessage {
     pub reply_count: Option<u64>,
     #[serde(rename = "replyTo")]
     pub reply_to: Option<NativeReplyPreview>,
+    pub files: Vec<NativeFile>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -82,6 +97,7 @@ pub struct NativeSearchMessage {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NativeSearchFile {
+    pub file: NativeFile,
     #[serde(rename = "channelId")]
     pub channel_id: u64,
     #[serde(rename = "channelName")]
@@ -90,6 +106,8 @@ pub struct NativeSearchFile {
     pub message_id: u64,
     #[serde(rename = "messageCreatedAt")]
     pub message_created_at: i64,
+    #[serde(rename = "messageContent")]
+    pub message_content: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

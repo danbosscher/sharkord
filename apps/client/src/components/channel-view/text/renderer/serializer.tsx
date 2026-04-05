@@ -58,10 +58,7 @@ const serializer = (domNode: DOMNode, messageId: number) => {
       if (
         parent instanceof Element &&
         !INLINE_MARKDOWN_EXCLUDED_TAGS.has(parent.name) &&
-        !(
-          parent.name === 'span' &&
-          parent.attribs['data-type'] === 'mention'
-        )
+        !(parent.name === 'span' && parent.attribs['data-type'] === 'mention')
       ) {
         return renderInlineMarkdown(
           domNode.data,

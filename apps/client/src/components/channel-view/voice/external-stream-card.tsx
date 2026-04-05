@@ -2,7 +2,15 @@ import { useVolumeControl } from '@/components/voice-provider/volume-control-con
 import { cn } from '@/lib/utils';
 import type { TExternalStream } from '@sharkord/shared';
 import { Avatar, AvatarFallback, AvatarImage, IconButton } from '@sharkord/ui';
-import { Eye, EyeOff, Headphones, Router, Video, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  Headphones,
+  Router,
+  Video,
+  ZoomIn,
+  ZoomOut
+} from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { CardControls } from './card-controls';
 import { CardGradient } from './card-gradient';
@@ -173,7 +181,8 @@ const ExternalStreamCard = memo(
       toggleMute(volumeKey);
     }, [volumeKey, toggleMute]);
 
-    const hasVideo = stream.tracks?.video && hasExternalVideoStream && !hideVideo;
+    const hasVideo =
+      stream.tracks?.video && hasExternalVideoStream && !hideVideo;
     const hasAudio = stream.tracks?.audio && hasExternalAudioStream;
 
     return (
@@ -183,7 +192,9 @@ const ExternalStreamCard = memo(
           'relative bg-card overflow-hidden group',
           'flex items-center justify-center',
           'w-full h-full',
-          isFullscreen ? 'rounded-none border-0' : 'rounded-lg border border-border',
+          isFullscreen
+            ? 'rounded-none border-0'
+            : 'rounded-lg border border-border',
           className
         )}
         onWheel={hasVideo ? handleWheel : undefined}

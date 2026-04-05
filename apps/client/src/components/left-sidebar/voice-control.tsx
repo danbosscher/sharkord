@@ -116,7 +116,10 @@ const VoiceControl = memo(() => {
                 disabled={loading}
               >
                 <RefreshCw
-                  className={cn('mr-1.5 h-3.5 w-3.5', loading && 'animate-spin')}
+                  className={cn(
+                    'mr-1.5 h-3.5 w-3.5',
+                    loading && 'animate-spin'
+                  )}
                 />
                 {t('reconnectVoice')}
               </Button>

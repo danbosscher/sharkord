@@ -111,7 +111,9 @@ const Category = memo(({ categoryId, onNavigate }: TCategoryProps) => {
         </Protect>
       </div>
 
-      {expanded && <Channels categoryId={category.id} onNavigate={onNavigate} />}
+      {expanded && (
+        <Channels categoryId={category.id} onNavigate={onNavigate} />
+      )}
     </div>
   );
 });

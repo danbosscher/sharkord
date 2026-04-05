@@ -1,6 +1,8 @@
 import { useChannelCan } from '@/features/server/hooks';
-import { leaveVoice } from '@/features/server/voice/actions';
-import { setHideIncomingVideoStreams } from '@/features/server/voice/actions';
+import {
+  leaveVoice,
+  setHideIncomingVideoStreams
+} from '@/features/server/voice/actions';
 import {
   useHideIncomingVideoStreams,
   useOwnVoiceState,

@@ -89,7 +89,11 @@ const joinVoiceRoute = rateLimitedProcedure(protectedProcedure, {
 
       logger.info('%s joined voice channel %s', ctx.user.name, channel.name);
     } else {
-      logger.info('%s reattached to voice channel %s', ctx.user.name, channel.name);
+      logger.info(
+        '%s reattached to voice channel %s',
+        ctx.user.name,
+        channel.name
+      );
     }
 
     const router = runtime.getRouter();

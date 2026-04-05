@@ -1,6 +1,9 @@
 import { AvatarManager } from '@/components/server-screens/user-settings/profile/avatar-manager';
 import { BannerManager } from '@/components/server-screens/user-settings/profile/banner-manager';
-import { useDisplayNameCollision, useOwnPublicUser } from '@/features/server/users/hooks';
+import {
+  useDisplayNameCollision,
+  useOwnPublicUser
+} from '@/features/server/users/hooks';
 import { useForm } from '@/hooks/use-form';
 import { getTRPCClient } from '@/lib/trpc';
 import {

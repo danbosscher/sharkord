@@ -1,11 +1,11 @@
 import { TiptapInput } from '@/components/tiptap-input';
+import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 import { getTRPCClient } from '@/lib/trpc';
 import { type TMessage, isEmptyMessage } from '@sharkord/shared';
 import { AutoFocus } from '@sharkord/ui';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 
 type TMessageEditInlineProps = {
   message: TMessage;

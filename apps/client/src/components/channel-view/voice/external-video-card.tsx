@@ -119,7 +119,9 @@ const ExternalVideoCard = memo(
           'relative bg-card overflow-hidden group',
           'flex items-center justify-center',
           'w-full h-full',
-          isFullscreen ? 'rounded-none border-0' : 'rounded-lg border border-border',
+          isFullscreen
+            ? 'rounded-none border-0'
+            : 'rounded-lg border border-border',
           className
         )}
         onWheel={handleWheel}

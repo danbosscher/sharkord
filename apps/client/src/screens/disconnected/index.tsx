@@ -1,6 +1,5 @@
 import { setIsAutoConnecting } from '@/features/app/actions';
-import { connect } from '@/features/server/actions';
-import { setDisconnectInfo } from '@/features/server/actions';
+import { connect, setDisconnectInfo } from '@/features/server/actions';
 import type { TDisconnectInfo } from '@/features/server/types';
 import { DisconnectCode } from '@sharkord/shared';
 import { Button } from '@sharkord/ui';

@@ -5,9 +5,9 @@ import { openDialog, requestTextInput } from '@/features/dialogs/actions';
 import { useUserRoles } from '@/features/server/hooks';
 import { useOwnUserId, useUserStatus } from '@/features/server/users/hooks';
 import { useDateLocale } from '@/hooks/use-date-locale';
+import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import { getTrpcError, UserStatus, type TJoinedUser } from '@sharkord/shared';
-import { getTRPCClient } from '@/lib/trpc';
 import {
   Button,
   DropdownMenu,

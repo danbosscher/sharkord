@@ -20,8 +20,8 @@ import {
   Smile,
   Trash
 } from 'lucide-react';
-import { memo, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 

@@ -63,4 +63,4 @@ const setTestDb = (newDb: BunSQLiteDatabase) => {
 
 const getTestDb = () => tdb;
 
-export { TEST_MIGRATIONS_PATH, getTestDb, setTestDb };
+export { getTestDb, setTestDb, TEST_MIGRATIONS_PATH };

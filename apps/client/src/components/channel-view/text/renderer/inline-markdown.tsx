@@ -5,7 +5,10 @@ const INLINE_MARKDOWN_DELIMITERS = ['**', '~~', '`', '*'] as const;
 const findNextDelimiter = (
   text: string,
   startIndex: number
-): { delimiter: (typeof INLINE_MARKDOWN_DELIMITERS)[number]; index: number } | null => {
+): {
+  delimiter: (typeof INLINE_MARKDOWN_DELIMITERS)[number];
+  index: number;
+} | null => {
   for (let index = startIndex; index < text.length; index += 1) {
     if (text[index - 1] === '\\') {
       continue;

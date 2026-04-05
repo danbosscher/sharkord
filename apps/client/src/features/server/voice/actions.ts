@@ -273,7 +273,10 @@ export const toggleEnabledIncomingVideoUserId = (userId: number): void => {
   store.dispatch(serverSliceActions.setEnabledIncomingVideoUserIds(next));
 
   try {
-    setLocalStorageItemAsJSON(LocalStorageKey.ENABLED_INCOMING_VIDEO_USER_IDS, next);
+    setLocalStorageItemAsJSON(
+      LocalStorageKey.ENABLED_INCOMING_VIDEO_USER_IDS,
+      next
+    );
   } catch (error) {
     console.error('Failed to save voice options:', error);
   }

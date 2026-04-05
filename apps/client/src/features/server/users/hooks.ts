@@ -1,6 +1,6 @@
-import { getDuplicateRenderedNames } from '@/helpers/get-user-disambiguation';
-import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import type { IRootState } from '@/features/store';
+import { getRenderedUsername } from '@/helpers/get-rendered-username';
+import { getDuplicateRenderedNames } from '@/helpers/get-user-disambiguation';
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import {

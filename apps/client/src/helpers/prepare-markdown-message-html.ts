@@ -39,15 +39,17 @@ const shouldSkipMarkdown = (token: string, name: string | null): boolean => {
   if (SKIP_MARKDOWN_TAGS.has(name)) return true;
 
   return (
-    name === 'span' &&
-    /data-type\s*=\s*['"](mention|emoji)['"]/i.test(token)
+    name === 'span' && /data-type\s*=\s*['"](mention|emoji)['"]/i.test(token)
   );
 };
 
 const findNextDelimiter = (
   text: string,
   startIndex: number
-): { delimiter: (typeof INLINE_MARKDOWN_DELIMITERS)[number]; index: number } | null => {
+): {
+  delimiter: (typeof INLINE_MARKDOWN_DELIMITERS)[number];
+  index: number;
+} | null => {
   for (let index = startIndex; index < text.length; index += 1) {
     if (text[index - 1] === '\\') {
       continue;
@@ -121,7 +123,9 @@ const transformMarkdownInHtml = (html: string): string => {
   const hasHtmlTags = /<[^>]+>/.test(html);
 
   if (!hasHtmlTags) {
-    return renderInlineMarkdownHtml(escapeHtml(html).replaceAll('\n', '<br />'));
+    return renderInlineMarkdownHtml(
+      escapeHtml(html).replaceAll('\n', '<br />')
+    );
   }
 
   const tokens = html.split(/(<[^>]+>)/g);
@@ -175,4 +179,8 @@ const transformMarkdownInHtml = (html: string): string => {
 const prepareMarkdownMessageHtml = (html: string): string =>
   prepareMessageHtml(transformMarkdownInHtml(html));
 
-export { prepareMarkdownMessageHtml, renderInlineMarkdownHtml, transformMarkdownInHtml };
+export {
+  prepareMarkdownMessageHtml,
+  renderInlineMarkdownHtml,
+  transformMarkdownInHtml
+};

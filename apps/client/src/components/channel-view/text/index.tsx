@@ -9,6 +9,7 @@ import {
 import { useMessages } from '@/features/server/messages/hooks';
 import { playSound } from '@/features/server/sounds/actions';
 import { SoundType } from '@/features/server/types';
+import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
 import {
@@ -32,7 +33,6 @@ import {
   getDraftMessage,
   setDraftMessage
 } from './use-draft-messages';
-import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 
 type TChannelProps = {
   channelId: number;

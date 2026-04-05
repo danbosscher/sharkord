@@ -26,7 +26,9 @@ describe('prepareMarkdownMessageHtml', () => {
 
   test('does not transform markdown inside code blocks', () => {
     expect(
-      prepareMarkdownMessageHtml('<p><code>**literal**</code> and <pre>~~raw~~</pre></p>')
+      prepareMarkdownMessageHtml(
+        '<p><code>**literal**</code> and <pre>~~raw~~</pre></p>'
+      )
     ).toBe('<p><code>**literal**</code> and <pre>~~raw~~</pre></p>');
   });
 

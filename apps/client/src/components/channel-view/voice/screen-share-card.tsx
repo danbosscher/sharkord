@@ -185,7 +185,9 @@ const ScreenShareCard = memo(
           'relative bg-card overflow-hidden group',
           'flex items-center justify-center',
           'w-full h-full',
-          isFullscreen ? 'rounded-none border-0' : 'rounded-lg border border-border',
+          isFullscreen
+            ? 'rounded-none border-0'
+            : 'rounded-lg border border-border',
           className
         )}
         onWheel={!hideVideo && hasScreenShareStream ? handleWheel : undefined}
@@ -195,7 +197,9 @@ const ScreenShareCard = memo(
         onMouseMove={
           !hideVideo && hasScreenShareStream ? handleMouseMove : undefined
         }
-        onMouseUp={!hideVideo && hasScreenShareStream ? handleMouseUp : undefined}
+        onMouseUp={
+          !hideVideo && hasScreenShareStream ? handleMouseUp : undefined
+        }
         onMouseLeave={
           !hideVideo && hasScreenShareStream ? handleMouseUp : undefined
         }

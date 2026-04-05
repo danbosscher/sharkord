@@ -53,7 +53,9 @@ const LeftSidebar = memo(({ className, onNavigate }: TLeftSidebarProps) => {
           <ServerDropdownMenu />
         </div>
       </div>
-      {publicSettings?.directMessagesEnabled && <DmButton onNavigate={onNavigate} />}
+      {publicSettings?.directMessagesEnabled && (
+        <DmButton onNavigate={onNavigate} />
+      )}
       <PluginButtons />
       <div className="flex-1 overflow-y-auto">
         {dmsOpen ? (

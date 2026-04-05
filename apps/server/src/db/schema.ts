@@ -1,7 +1,7 @@
 import {
+  type NoiseSuppressionMode,
   type TActivityLogDetailsMap,
-  type TMessageMetadata,
-  type NoiseSuppressionMode
+  type TMessageMetadata
 } from '@sharkord/shared';
 import {
   index,

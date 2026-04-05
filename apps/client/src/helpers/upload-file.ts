@@ -47,7 +47,10 @@ const uploadFile = async (
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader(UploadHeaders.TYPE, file.type);
     xhr.setRequestHeader(UploadHeaders.CONTENT_LENGTH, file.size.toString());
-    xhr.setRequestHeader(UploadHeaders.ORIGINAL_NAME, getSafeFileName(file.name));
+    xhr.setRequestHeader(
+      UploadHeaders.ORIGINAL_NAME,
+      getSafeFileName(file.name)
+    );
     xhr.setRequestHeader(
       UploadHeaders.TOKEN,
       getSessionStorageItem(SessionStorageKey.TOKEN) ?? ''
@@ -56,7 +59,10 @@ const uploadFile = async (
     xhr.upload.onprogress = (event) => {
       if (!onProgress) return;
 
-      onProgress(event.loaded, event.lengthComputable ? event.total : file.size);
+      onProgress(
+        event.loaded,
+        event.lengthComputable ? event.total : file.size
+      );
     };
 
     xhr.onload = () => {

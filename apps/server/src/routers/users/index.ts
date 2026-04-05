@@ -3,8 +3,8 @@ import { addRoleRoute } from './add-role';
 import { banRoute } from './ban';
 import { changeAvatarRoute } from './change-avatar';
 import { changeBannerRoute } from './change-banner';
-import { deleteUserRoute } from './delete-user';
 import { completeProfileSetupRoute } from './complete-profile-setup';
+import { deleteUserRoute } from './delete-user';
 import {
   onUserCreateRoute,
   onUserDeleteRoute,

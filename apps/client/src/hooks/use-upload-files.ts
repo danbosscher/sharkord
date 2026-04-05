@@ -1,9 +1,6 @@
 import { useChannelById } from '@/features/server/channels/hooks';
 import { useCan, usePublicServerSettings } from '@/features/server/hooks';
-import {
-  uploadFiles,
-  type TUploadFilesProgress
-} from '@/helpers/upload-file';
+import { uploadFiles, type TUploadFilesProgress } from '@/helpers/upload-file';
 import { Permission, type TTempFile } from '@sharkord/shared';
 import {
   useCallback,

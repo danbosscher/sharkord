@@ -11,14 +11,14 @@ import {
 } from '@/features/server/hooks';
 import { useFlatPluginCommands } from '@/features/server/plugins/hooks';
 import { useOwnUserId, useUserById } from '@/features/server/users/hooks';
-import { useUploadFiles } from '@/hooks/use-upload-files';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
+import { useUploadFiles } from '@/hooks/use-upload-files';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
 import type { TJoinedPublicUser, TTempFile } from '@sharkord/shared';
 import {
-  ChannelType,
   ChannelPermission,
+  ChannelType,
   Permission,
   PluginSlot,
   isEmptyMessage
@@ -203,7 +203,9 @@ const MessageCompose = memo(
 
       return Math.min(
         100,
-        Math.round((uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100)
+        Math.round(
+          (uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100
+        )
       );
     }, [uploadProgress]);
 

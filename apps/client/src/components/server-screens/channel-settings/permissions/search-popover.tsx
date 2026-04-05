@@ -137,10 +137,7 @@ const SearchPopover = memo(
                         <div className="truncate">{user.name}</div>
                         {getUserDisambiguator(user, duplicateRenderedNames) && (
                           <div className="truncate text-xs text-muted-foreground">
-                            {getUserDisambiguator(
-                              user,
-                              duplicateRenderedNames
-                            )}
+                            {getUserDisambiguator(user, duplicateRenderedNames)}
                           </div>
                         )}
                       </div>

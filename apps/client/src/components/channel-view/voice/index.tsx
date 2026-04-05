@@ -71,8 +71,9 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
 
     // Check if there are any video streams at all
     const hasAnyVideoStreams =
-      voiceUsers.some((user) => user.state.webcamEnabled || user.state.sharingScreen) ||
-      externalStreams.some((stream) => stream.tracks.video);
+      voiceUsers.some(
+        (user) => user.state.webcamEnabled || user.state.sharingScreen
+      ) || externalStreams.some((stream) => stream.tracks.video);
 
     // Only apply the filter if there are some video streams
     const shouldFilterNonVideo = hideNonVideoParticipants && hasAnyVideoStreams;
@@ -89,7 +90,9 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
             key={userCardId}
             userId={voiceUser.id}
             hideVideo={!showVideo}
-            canToggleVideo={hideIncomingVideoStreams && voiceUser.id !== ownUserId}
+            canToggleVideo={
+              hideIncomingVideoStreams && voiceUser.id !== ownUserId
+            }
             onToggleVideo={() => toggleEnabledIncomingVideoUserId(voiceUser.id)}
             isPinned={isPinned(userCardId)}
             onPin={() =>
@@ -117,7 +120,9 @@ const VoiceChannel = memo(({ channelId }: TChannelProps) => {
             key={screenShareCardId}
             userId={voiceUser.id}
             hideVideo={!showScreenShare}
-            canToggleVideo={hideIncomingVideoStreams && voiceUser.id !== ownUserId}
+            canToggleVideo={
+              hideIncomingVideoStreams && voiceUser.id !== ownUserId
+            }
             onToggleVideo={() =>
               toggleEnabledIncomingScreenShareUserId(voiceUser.id)
             }

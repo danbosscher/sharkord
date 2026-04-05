@@ -1,11 +1,12 @@
 import { EmojiPicker } from '@/components/emoji-picker';
 import { useCustomEmojis } from '@/features/server/emojis/hooks';
 import { useFilteredUsers } from '@/features/server/users/hooks';
+import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 import type { TCommandInfo } from '@sharkord/shared';
 import { Button } from '@sharkord/ui';
+import type { Editor } from '@tiptap/core';
 import Emoji, { gitHubEmojis } from '@tiptap/extension-emoji';
 import Link from '@tiptap/extension-link';
-import type { Editor } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Smile } from 'lucide-react';
@@ -32,7 +33,6 @@ import {
 } from './plugins/mentions/suggestion';
 import { SlashCommands } from './plugins/slash-commands-extension';
 import { EmojiSuggestion } from './plugins/suggestions';
-import { prepareMarkdownMessageHtml } from '@/helpers/prepare-markdown-message-html';
 
 type TTiptapInputProps = {
   disabled?: boolean;

@@ -764,10 +764,7 @@ export const serverSlice = createSlice({
     setHideNonVideoParticipants: (state, action: PayloadAction<boolean>) => {
       state.hideNonVideoParticipants = action.payload;
     },
-    setHideIncomingVideoStreams: (
-      state,
-      action: PayloadAction<boolean>
-    ) => {
+    setHideIncomingVideoStreams: (state, action: PayloadAction<boolean>) => {
       state.hideIncomingVideoStreams = action.payload;
     },
     setEnabledIncomingVideoUserIds: (

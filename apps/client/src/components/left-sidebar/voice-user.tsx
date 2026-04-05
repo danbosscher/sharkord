@@ -45,7 +45,9 @@ const VoiceUser = memo(({ user, isOwnChannel = false }: TVoiceUserProps) => {
       />
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs text-muted-foreground">{user.name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {user.name}
+        </div>
         {disambiguator && (
           <div className="truncate text-[10px] text-muted-foreground/80">
             {disambiguator}

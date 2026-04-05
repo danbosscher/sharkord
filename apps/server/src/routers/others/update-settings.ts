@@ -1,8 +1,8 @@
 import {
   ActivityLogType,
+  NoiseSuppressionMode,
   Permission,
-  StorageOverflowAction,
-  NoiseSuppressionMode
+  StorageOverflowAction
 } from '@sharkord/shared';
 import { z } from 'zod';
 import { updateSettings } from '../../db/mutations/server';
@@ -35,9 +35,7 @@ const updateSettingsRoute = protectedProcedure
       storageSignedUrlsEnabled: z.boolean().optional(),
       storageSignedUrlsTtlSeconds: z.number().int().min(0).optional(),
       defaultEchoCancellation: z.boolean().optional(),
-      defaultNoiseSuppression: z
-        .nativeEnum(NoiseSuppressionMode)
-        .optional()
+      defaultNoiseSuppression: z.nativeEnum(NoiseSuppressionMode).optional()
     })
   )
   .mutation(async ({ input, ctx }) => {

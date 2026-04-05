@@ -1,5 +1,5 @@
-import { MICROPHONE_GATE_DEFAULT_THRESHOLD_DB } from '@/helpers/audio-gate';
 import { usePublicServerSettings } from '@/features/server/hooks';
+import { MICROPHONE_GATE_DEFAULT_THRESHOLD_DB } from '@/helpers/audio-gate';
 import { getRestrictOwnAudioSupport } from '@/helpers/get-display-media-support';
 import {
   getLocalStorageItemAsJSON,
@@ -39,12 +39,10 @@ const mapDefaultNoiseSuppression = (
   }
 };
 
-const getDefaultDeviceSettings = (
-  serverDefaults?: {
-    defaultEchoCancellation?: boolean;
-    defaultNoiseSuppression?: string;
-  }
-): TDeviceSettings => ({
+const getDefaultDeviceSettings = (serverDefaults?: {
+  defaultEchoCancellation?: boolean;
+  defaultNoiseSuppression?: string;
+}): TDeviceSettings => ({
   microphoneId: undefined,
   playbackId: undefined,
   webcamId: undefined,
@@ -305,7 +303,11 @@ const DevicesProvider = memo(({ children }: TDevicesProviderProps) => {
   ]);
 
   useEffect(() => {
-    if (!initializedRef.current || hadSavedSettingsRef.current || !publicSettings) {
+    if (
+      !initializedRef.current ||
+      hadSavedSettingsRef.current ||
+      !publicSettings
+    ) {
       return;
     }
 

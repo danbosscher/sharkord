@@ -10,7 +10,14 @@ import {
 import { getFileUrl } from '@/helpers/get-file-url';
 import { cn } from '@/lib/utils';
 import { IconButton } from '@sharkord/ui';
-import { Eye, EyeOff, HeadphoneOff, MicOff, Monitor, Video } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  HeadphoneOff,
+  MicOff,
+  Monitor,
+  Video
+} from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { CardControls } from './card-controls';
 import { CardGradient } from './card-gradient';

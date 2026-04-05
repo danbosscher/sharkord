@@ -14,6 +14,7 @@ struct Config {
     channel_id: Option<u64>,
     send_message: Option<String>,
     get_message_id: Option<u64>,
+    thread_parent_message_id: Option<u64>,
     search_query: Option<String>,
     edit_message_id: Option<u64>,
     edit_content: Option<String>,
@@ -31,6 +32,7 @@ fn parse_args() -> Result<Config> {
     let mut channel_id = None;
     let mut send_message = None;
     let mut get_message_id = None;
+    let mut thread_parent_message_id = None;
     let mut search_query = None;
     let mut edit_message_id = None;
     let mut edit_content = None;
@@ -57,6 +59,13 @@ fn parse_args() -> Result<Config> {
                     .map(|value| value.parse::<u64>())
                     .transpose()
                     .context("invalid --get-message value")?;
+            }
+            "--thread" => {
+                thread_parent_message_id = args
+                    .next()
+                    .map(|value| value.parse::<u64>())
+                    .transpose()
+                    .context("invalid --thread value")?;
             }
             "--search" => search_query = args.next(),
             "--edit-message" => {
@@ -86,6 +95,7 @@ fn parse_args() -> Result<Config> {
   [--send \"hello from native\"] \\
   [--search \"hello\"] \\
   [--get-message 42] \\
+  [--thread 42] \\
   [--edit-message 42 --edit-content \"updated text\"] \\
   [--delete-message 42] \\
   [--no-stream]"
@@ -107,6 +117,7 @@ fn parse_args() -> Result<Config> {
         channel_id,
         send_message,
         get_message_id,
+        thread_parent_message_id,
         search_query,
         edit_message_id,
         edit_content,
@@ -179,6 +190,25 @@ fn print_search_results(results: &NativeSearchResults) {
     }
 }
 
+fn print_thread(parent_message: &NativeMessage, messages: &NativeMessagesResponse) {
+    println!("Thread starter:");
+    print_message(parent_message);
+
+    if messages.messages.is_empty() {
+        println!("No replies in thread.");
+        return;
+    }
+
+    println!("Replies:");
+
+    for message in &messages.messages {
+        println!(
+            "  #{} user={} at {} -> {}",
+            message.id, message.user_id, message.created_at, message.content
+        );
+    }
+}
+
 fn print_event(event: NativeEventEnvelope) {
     println!("event {} -> {}", event.event_type, event.payload);
 }
@@ -214,6 +244,14 @@ async fn main() -> Result<()> {
     if let Some(message_id) = config.get_message_id {
         let message = client.get_message(&token, message_id).await?;
         print_message(&message);
+    }
+
+    if let Some(parent_message_id) = config.thread_parent_message_id {
+        let parent_message = client.get_message(&token, parent_message_id).await?;
+        let thread = client
+            .fetch_thread_messages(&token, parent_message_id)
+            .await?;
+        print_thread(&parent_message, &thread);
     }
 
     if let Some(query) = &config.search_query {

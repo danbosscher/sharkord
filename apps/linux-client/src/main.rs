@@ -151,6 +151,27 @@ fn user_display_name(bootstrap: &NativeBootstrap, user_id: u64) -> String {
         .unwrap_or_else(|| format!("user {user_id}"))
 }
 
+fn reply_preview_text(bootstrap: &NativeBootstrap, message: &NativeMessage) -> Option<String> {
+    if let Some(reply_to) = message.reply_to.as_ref() {
+        let plain_content = strip_html(&reply_to.content);
+        let display_content = if plain_content.is_empty() {
+            "(empty or non-text message)".to_string()
+        } else {
+            plain_content
+        };
+
+        return Some(format!(
+            "Replying to {}: {}",
+            user_display_name(bootstrap, reply_to.user_id),
+            truncate_preview(&display_content),
+        ));
+    }
+
+    message
+        .reply_to_message_id
+        .map(|reply_to_message_id| format!("Replying to message #{reply_to_message_id}"))
+}
+
 fn set_compose_mode_ui(
     app_state: &Rc<RefCell<AppState>>,
     send_button: &gtk::Button,
@@ -262,6 +283,68 @@ fn begin_reply_mode(
     );
     compose_entry.grab_focus();
     compose_entry.set_position(-1);
+}
+
+fn open_message_target(
+    app_state: &Rc<RefCell<AppState>>,
+    tx: &mpsc::Sender<UiMessage>,
+    status_label: &gtk::Label,
+    channel_label: &gtk::Label,
+    channel_list: &gtk::ListBox,
+    content_stack: &gtk::Stack,
+    compose_entry: &gtk::Entry,
+    send_button: &gtk::Button,
+    cancel_edit_button: &gtk::Button,
+    compose_context_label: &gtk::Label,
+    target_message_id: u64,
+    override_channel_id: Option<u64>,
+) {
+    let (client, token, generation, channel_id, channel_name, bootstrap) = {
+        let mut state = app_state.borrow_mut();
+        state.editing_message_id = None;
+        state.replying_to = None;
+        state.current_thread_parent_message_id = None;
+
+        let Some(session) = state.session.as_mut() else {
+            status_label.set_text("Not connected.");
+            return;
+        };
+
+        let channel_id = override_channel_id.unwrap_or(session.selected_channel_id);
+        session.selected_channel_id = channel_id;
+
+        let bootstrap = session.bootstrap.clone();
+        let channel_name = active_text_channel_name(&bootstrap, channel_id);
+
+        (
+            session.client.clone(),
+            session.token.clone(),
+            session.generation,
+            channel_id,
+            channel_name,
+            bootstrap,
+        )
+    };
+
+    compose_entry.set_text("");
+    set_compose_mode_ui(
+        app_state,
+        send_button,
+        cancel_edit_button,
+        compose_context_label,
+    );
+    channel_label.set_text(&format!("Current channel: {}", channel_name));
+    select_channel_row(channel_list, &bootstrap, channel_id);
+    content_stack.set_visible_child_name("timeline");
+    status_label.set_text(&format!("Opening message {}...", target_message_id));
+    spawn_fetch_messages_target(
+        tx.clone(),
+        generation,
+        client,
+        token,
+        channel_id,
+        Some(target_message_id),
+    );
 }
 
 fn populate_channel_list(
@@ -647,6 +730,7 @@ fn populate_message_list(
     messages: &NativeMessagesResponse,
     app_state: &Rc<RefCell<AppState>>,
     tx: &mpsc::Sender<UiMessage>,
+    navigation_ui: &NavigationUi,
     status_label: &gtk::Label,
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
@@ -730,6 +814,9 @@ fn populate_message_list(
             .build();
         let reply_button = gtk::Button::builder().label("Reply").build();
         let view_thread_button = gtk::Button::builder().label("Thread").build();
+        let open_parent_button = message
+            .reply_to_message_id
+            .map(|_| gtk::Button::builder().label("Open Parent").build());
 
         {
             let app_state = Rc::clone(app_state);
@@ -897,10 +984,47 @@ fn populate_message_list(
             });
         }
 
+        if let (Some(reply_to_message_id), Some(open_parent_button)) =
+            (message.reply_to_message_id, open_parent_button.as_ref())
+        {
+            let app_state = Rc::clone(app_state);
+            let tx = tx.clone();
+            let (
+                status_label,
+                channel_label,
+                channel_list,
+                content_stack,
+                compose_entry,
+                send_button,
+                cancel_edit_button,
+                compose_context_label,
+            ) = navigation_ui.clone();
+
+            open_parent_button.connect_clicked(move |_| {
+                open_message_target(
+                    &app_state,
+                    &tx,
+                    &status_label,
+                    &channel_label,
+                    &channel_list,
+                    &content_stack,
+                    &compose_entry,
+                    &send_button,
+                    &cancel_edit_button,
+                    &compose_context_label,
+                    reply_to_message_id,
+                    None,
+                );
+            });
+        }
+
         actions.append(&edit_button);
         actions.append(&delete_button);
         actions.append(&reply_button);
         actions.append(&view_thread_button);
+        if let Some(open_parent_button) = open_parent_button.as_ref() {
+            actions.append(open_parent_button);
+        }
 
         container.append(&meta);
         if !context_parts.is_empty() {
@@ -912,6 +1036,16 @@ fn populate_message_list(
                 .build();
 
             container.append(&context);
+        }
+        if let Some(reply_preview) = reply_preview_text(bootstrap, message) {
+            let reply_preview_label = gtk::Label::builder()
+                .xalign(0.0)
+                .wrap(true)
+                .css_classes(["caption", "dim-label"])
+                .label(reply_preview)
+                .build();
+
+            container.append(&reply_preview_label);
         }
         container.append(&content);
         container.append(&actions);
@@ -927,6 +1061,7 @@ fn populate_thread_list(
     messages: &NativeMessagesResponse,
     app_state: &Rc<RefCell<AppState>>,
     tx: &mpsc::Sender<UiMessage>,
+    navigation_ui: &NavigationUi,
     status_label: &gtk::Label,
     compose_entry: &gtk::Entry,
     send_button: &gtk::Button,
@@ -986,6 +1121,9 @@ fn populate_thread_list(
         .css_classes(["destructive-action"])
         .build();
     let reply_button = gtk::Button::builder().label("Reply").build();
+    let open_parent_button = parent_message
+        .reply_to_message_id
+        .map(|_| gtk::Button::builder().label("Open Parent").build());
 
     {
         let app_state = Rc::clone(app_state);
@@ -1073,10 +1211,58 @@ fn populate_thread_list(
         });
     }
 
+    if let (Some(reply_to_message_id), Some(open_parent_button)) = (
+        parent_message.reply_to_message_id,
+        open_parent_button.as_ref(),
+    ) {
+        let app_state = Rc::clone(app_state);
+        let tx = tx.clone();
+        let (
+            status_label,
+            channel_label,
+            channel_list,
+            content_stack,
+            compose_entry,
+            send_button,
+            cancel_edit_button,
+            compose_context_label,
+        ) = navigation_ui.clone();
+
+        open_parent_button.connect_clicked(move |_| {
+            open_message_target(
+                &app_state,
+                &tx,
+                &status_label,
+                &channel_label,
+                &channel_list,
+                &content_stack,
+                &compose_entry,
+                &send_button,
+                &cancel_edit_button,
+                &compose_context_label,
+                reply_to_message_id,
+                None,
+            );
+        });
+    }
+
     actions.append(&edit_button);
     actions.append(&delete_button);
     actions.append(&reply_button);
+    if let Some(open_parent_button) = open_parent_button.as_ref() {
+        actions.append(open_parent_button);
+    }
     container.append(&meta);
+    if let Some(reply_preview) = reply_preview_text(bootstrap, parent_message) {
+        let reply_preview_label = gtk::Label::builder()
+            .xalign(0.0)
+            .wrap(true)
+            .css_classes(["caption", "dim-label"])
+            .label(reply_preview)
+            .build();
+
+        container.append(&reply_preview_label);
+    }
     container.append(&content);
     container.append(&actions);
     row.set_child(Some(&container));
@@ -1139,6 +1325,9 @@ fn populate_thread_list(
             .css_classes(["destructive-action"])
             .build();
         let reply_button = gtk::Button::builder().label("Reply").build();
+        let open_parent_button = message
+            .reply_to_message_id
+            .map(|_| gtk::Button::builder().label("Open Parent").build());
 
         {
             let app_state = Rc::clone(app_state);
@@ -1228,10 +1417,57 @@ fn populate_thread_list(
             });
         }
 
+        if let (Some(reply_to_message_id), Some(open_parent_button)) =
+            (message.reply_to_message_id, open_parent_button.as_ref())
+        {
+            let app_state = Rc::clone(app_state);
+            let tx = tx.clone();
+            let (
+                status_label,
+                channel_label,
+                channel_list,
+                content_stack,
+                compose_entry,
+                send_button,
+                cancel_edit_button,
+                compose_context_label,
+            ) = navigation_ui.clone();
+
+            open_parent_button.connect_clicked(move |_| {
+                open_message_target(
+                    &app_state,
+                    &tx,
+                    &status_label,
+                    &channel_label,
+                    &channel_list,
+                    &content_stack,
+                    &compose_entry,
+                    &send_button,
+                    &cancel_edit_button,
+                    &compose_context_label,
+                    reply_to_message_id,
+                    None,
+                );
+            });
+        }
+
         actions.append(&edit_button);
         actions.append(&delete_button);
         actions.append(&reply_button);
+        if let Some(open_parent_button) = open_parent_button.as_ref() {
+            actions.append(open_parent_button);
+        }
         container.append(&meta);
+        if let Some(reply_preview) = reply_preview_text(bootstrap, message) {
+            let reply_preview_label = gtk::Label::builder()
+                .xalign(0.0)
+                .wrap(true)
+                .css_classes(["caption", "dim-label"])
+                .label(reply_preview)
+                .build();
+
+            container.append(&reply_preview_label);
+        }
         container.append(&content);
         container.append(&actions);
         row.set_child(Some(&container));
@@ -2441,6 +2677,7 @@ fn build_ui(app: &adw::Application) {
                             &messages,
                             &app_state,
                             &tx_for_events,
+                            &navigation_ui,
                             &status_label,
                             &compose_entry,
                             &send_button,
@@ -2512,6 +2749,7 @@ fn build_ui(app: &adw::Application) {
                             &messages,
                             &app_state,
                             &tx_for_events,
+                            &navigation_ui,
                             &status_label,
                             &compose_entry,
                             &send_button,
@@ -2619,6 +2857,7 @@ fn build_ui(app: &adw::Application) {
                             &messages,
                             &app_state,
                             &tx_for_events,
+                            &navigation_ui,
                             &status_label,
                             &compose_entry,
                             &send_button,

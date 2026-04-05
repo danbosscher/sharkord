@@ -32,7 +32,7 @@ The app currently provides:
 - a native GTK/libadwaita text client
 - saved server URL and remembered username on Linux
 - saved auth token and last selected text channel for session resume on Linux
-- real login, bootstrap, channel listing, message fetch, plain text send, explicit reply mode, inline edit/delete actions, a separate search-results view with `Open` actions back into the live timeline, dedicated thread views, thread replies through the main compose box while a thread is open, manual refresh that respects the active timeline/thread view, and token-based reconnect after stream loss
+- real login, bootstrap, channel listing, message fetch, plain text send, explicit reply mode, inline edit/delete actions, inline reply previews with parent-jump actions, a separate search-results view with `Open` actions back into the live timeline, dedicated thread views, thread replies through the main compose box while a thread is open, manual refresh that respects the active timeline/thread view, and token-based reconnect after stream loss
 - background SSE event tailing for chat refreshes, unread channel markers, and desktop notifications for new messages from other users
 - a headless Rust prototype for login, bootstrap, message fetch/send/get/thread/search/edit/delete, and SSE event tailing
 

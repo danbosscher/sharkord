@@ -40,10 +40,10 @@ const TableUser = memo(({ user, refetch }: TTableUserProps) => {
 
   const onRenameClick = useCallback(async () => {
     const name = await requestTextInput({
-      title: `Rename ${user.name}`,
+      title: `Change profile name for ${user.name}`,
       message:
-        'Enter a new display name for this user. Duplicate names are allowed; Sharkord will add #id disambiguators in lists and mentions when names collide.',
-      confirmLabel: 'Rename',
+        'Enter a new profile name for this user. Duplicate profile names are allowed; Sharkord will add #id disambiguators in lists and mentions when names collide.',
+      confirmLabel: 'Save',
       defaultValue: user.name
     });
 

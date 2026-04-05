@@ -68,8 +68,8 @@ const Profile = memo(() => {
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
             {hasCollision
-              ? 'That display name is already in use. Duplicate names are allowed, and Sharkord will show a #id label in mentions and member lists to disambiguate people.'
-              : 'Display names do not need to be unique. If more than one person uses the same name, Sharkord will show a #id label in mentions and member lists to disambiguate people.'}
+              ? 'That profile name is already in use. Duplicate profile names are allowed, and Sharkord will show a #id label in mentions and member lists to disambiguate people.'
+              : 'Profile names do not need to be unique. If more than one person uses the same name, Sharkord will show a #id label in mentions and member lists to disambiguate people.'}
           </AlertDescription>
         </Alert>
 

@@ -1,6 +1,6 @@
 {
   "identityLabel": "Nome utente",
-  "identityHelp": "Un identificatore univoco per il tuo account su questo server. Puoi usare cio che preferisci, ad esempio un indirizzo email o un nome utente. Non verra condiviso pubblicamente.",
+  "identityHelp": "Il tuo nome utente privato di accesso per questo server. E separato dal tuo nome profilo pubblico.",
   "passwordLabel": "Password",
   "autoLoginLabel": "Accesso automatico",
   "insecureTitle": "Connessione non sicura",

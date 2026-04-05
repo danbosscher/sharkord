@@ -48,7 +48,7 @@
     "MANAGE_UPDATES": "Permet d'effectuer des mises à jour.",
     "MANAGE_PLUGINS": "Permet de gérer les plugins.",
     "EXECUTE_PLUGIN_COMMANDS": "Permet d'exécuter des commandes plugin.",
-    "VIEW_USER_SENSITIVE_DATA": "Permet de consulter les données sensibles des utilisateurs, telles que leurs identités, leurs adresses IP et leurs localisations."
+    "VIEW_USER_SENSITIVE_DATA": "Permet de consulter les données sensibles des utilisateurs, telles que leurs noms d'utilisateur, leurs adresses IP et leurs localisations."
   },
   "channel": {
     "VIEW_CHANNEL": "Voir le canal",

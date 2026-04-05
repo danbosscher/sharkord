@@ -41,7 +41,7 @@ const zBody = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .min(1, 'Identity must be at least 1 character long'),
+    .min(1, 'Username must be at least 1 character long'),
   password: z
     .string()
     .min(4, 'Password must be at least 4 characters long')
@@ -126,7 +126,7 @@ const loginRouteHandler = async (
   const data = zBody.parse(await getJsonBody(req));
 
   if (data.identity === DELETED_USER_IDENTITY_AND_NAME) {
-    throw new HttpValidationError('identity', 'This identity is reserved');
+    throw new HttpValidationError('identity', 'This username is reserved');
   }
 
   const settings = await getSettings();
@@ -217,7 +217,7 @@ const loginRouteHandler = async (
   if (existingUser.banned) {
     throw new HttpValidationError(
       'identity',
-      `Identity banned: ${existingUser.banReason || 'No reason provided'}`
+      `Username banned: ${existingUser.banReason || 'No reason provided'}`
     );
   }
 

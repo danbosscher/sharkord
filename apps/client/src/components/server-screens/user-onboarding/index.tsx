@@ -64,7 +64,7 @@ const UserOnboarding = memo(() => {
         <CardHeader>
           <CardTitle>{t('profileTitle')}</CardTitle>
           <CardDescription>
-            Pick a display name before you start. Avatar and banner are optional
+            Pick a profile name before you start. Avatar and banner are optional
             and can be added now or later.
           </CardDescription>
         </CardHeader>
@@ -77,8 +77,8 @@ const UserOnboarding = memo(() => {
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
               {hasCollision
-                ? 'That display name is already in use. Duplicate names are allowed, and Sharkord will show a #id label in mentions and member lists to disambiguate people.'
-                : 'Display names do not need to be unique. If more than one person uses the same name, Sharkord will show a #id label in mentions and member lists to disambiguate people.'}
+                ? 'That profile name is already in use. Duplicate profile names are allowed, and Sharkord will show a #id label in mentions and member lists to disambiguate people.'
+                : 'Profile names do not need to be unique. If more than one person uses the same name, Sharkord will show a #id label in mentions and member lists to disambiguate people.'}
             </AlertDescription>
           </Alert>
 

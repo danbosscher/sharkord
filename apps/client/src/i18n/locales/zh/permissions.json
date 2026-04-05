@@ -48,7 +48,7 @@
     "MANAGE_UPDATES": "授予执行更新的权限。",
     "MANAGE_PLUGINS": "授予管理插件的权限。",
     "USE_PLUGINS": "授予使用插件的权限，例如执行插件命令或查看插件添加的 UI 元素。",
-    "VIEW_USER_SENSITIVE_DATA": "授予查看用户敏感数据（如身份标识、IP 地址和位置）的权限。"
+    "VIEW_USER_SENSITIVE_DATA": "授予查看用户敏感数据（如用户名、IP 地址和位置）的权限。"
   },
   "channel": {
     "VIEW_CHANNEL": "查看频道",

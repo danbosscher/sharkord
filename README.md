@@ -20,6 +20,18 @@
 
 Sharkord is a self-hosted communication platform that brings the most important Discord-like features to your own infrastructure. Host voice channels, text chat, and file sharing on your terms—no third-party dependencies, complete data ownership, and full control over your group's communication.
 
+## This Fork
+
+This repository is a deployment-focused fork of the original [Sharkord/sharkord](https://github.com/Sharkord/sharkord) project.
+
+If you want the upstream project, issue tracker, or releases, start there:
+
+- Upstream repo: https://github.com/Sharkord/sharkord
+- Upstream issues: https://github.com/Sharkord/sharkord/issues
+- Upstream pull requests: https://github.com/Sharkord/sharkord/pulls
+
+For what changed in this fork, see [`todo.md`](todo.md). That file tracks the fork-specific backlog, what was implemented locally, what was intentionally deferred, and the main operational decisions made for this small private deployment.
+
 ## Docs
 
 For detailed documentation, please visit our [Documentation](https://sharkord.com/docs).

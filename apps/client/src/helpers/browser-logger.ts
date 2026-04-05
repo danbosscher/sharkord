@@ -1,6 +1,10 @@
 import { isDebug } from './is-debug';
 
 const logVoice = (...args: unknown[]) => {
+  if (!isDebug()) {
+    return;
+  }
+
   console.log(
     '%c[VOICE-PROVIDER]',
     'color: salmon; font-weight: bold;',

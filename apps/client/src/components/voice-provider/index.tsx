@@ -149,6 +149,7 @@ export type TVoiceProvider = {
   isScreenShareSupported: boolean;
   getOrCreateRefs: (remoteId: number) => AudioVideoRefs;
   getConsumerCodec: (remoteId: number, kind: StreamKind) => string | undefined;
+  setTransportStatsEnabled: (enabled: boolean) => void;
   init: (
     routerRtpCapabilities: RtpCapabilities,
     channelId: number,
@@ -196,6 +197,7 @@ const VoiceProviderContext = createContext<TVoiceProvider>({
     externalVideoRef: { current: null }
   }),
   getConsumerCodec: () => undefined,
+  setTransportStatsEnabled: () => undefined,
   init: () => Promise.resolve(),
   toggleMic: () => Promise.resolve(),
   toggleSound: () => Promise.resolve(),
@@ -259,6 +261,7 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
   const { devices } = useDevices();
   const deviceSettingsRef = useRef(devices);
   const { isScreenShareSupported } = useScreenShareSupport();
+  const [transportStatsEnabled, setTransportStatsEnabled] = useState(false);
 
   useEffect(() => {
     deviceSettingsRef.current = devices;
@@ -1121,6 +1124,7 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
       clearExternalStreams();
       cleanupTransports();
       routerRtpCapabilities.current = null;
+      audioVideoRefsMap.current.clear();
 
       setLoading(false);
       setConnectionStatus(ConnectionStatus.DISCONNECTED);
@@ -1275,7 +1279,6 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
           return;
         }
 
-        startMonitoring(producerTransport.current, consumerTransport.current);
         setConnectionStatus(ConnectionStatus.CONNECTED);
         setLoading(false);
         playSound(SoundType.OWN_USER_JOINED_VOICE_CHANNEL);
@@ -1307,9 +1310,6 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
       isVoiceLifecycleCurrent,
       shouldConsumeIncomingStreamKind,
       startMicStream,
-      startMonitoring,
-      producerTransport,
-      consumerTransport,
       restoreOwnMediaState,
       localAudioProducer
     ]
@@ -1582,6 +1582,28 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
   }, [attemptVoiceRecovery, connectionStatus, currentVoiceChannelId]);
 
   useEffect(() => {
+    const shouldMonitorStats =
+      connectionStatus === ConnectionStatus.CONNECTED &&
+      (!!producerTransport.current || !!consumerTransport.current) &&
+      (transportStatsEnabled || ownVoiceState.sharingScreen);
+
+    if (shouldMonitorStats) {
+      startMonitoring(producerTransport.current, consumerTransport.current);
+      return;
+    }
+
+    stopMonitoring();
+  }, [
+    connectionStatus,
+    ownVoiceState.sharingScreen,
+    producerTransport,
+    consumerTransport,
+    startMonitoring,
+    stopMonitoring,
+    transportStatsEnabled
+  ]);
+
+  useEffect(() => {
     const retryVoiceRecovery = () => {
       attemptedAutoRecoveryRef.current = false;
       attemptVoiceRecovery();
@@ -1625,6 +1647,7 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
       isScreenShareSupported,
       getOrCreateRefs,
       getConsumerCodec,
+      setTransportStatsEnabled,
       init,
 
       toggleMic,
@@ -1648,6 +1671,7 @@ const VoiceProvider = memo(({ children }: TVoiceProviderProps) => {
       isScreenShareSupported,
       getOrCreateRefs,
       getConsumerCodec,
+      setTransportStatsEnabled,
       init,
 
       toggleMic,

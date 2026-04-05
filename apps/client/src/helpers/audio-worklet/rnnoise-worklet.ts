@@ -14,6 +14,17 @@ const isRnnoiseWorkletSupported = () => {
 // promise is reused (no re-fetch, no re-parse); across page loads the response
 // is served from the Cache API
 let rnnoiseBlobUrlPromise: Promise<string> | null = null;
+let rnnoiseBlobUrl: string | null = null;
+
+const cleanupRnnoiseBlobUrl = () => {
+  if (!rnnoiseBlobUrl) {
+    return;
+  }
+
+  URL.revokeObjectURL(rnnoiseBlobUrl);
+  rnnoiseBlobUrl = null;
+  rnnoiseBlobUrlPromise = null;
+};
 
 const getRnnoiseBlobUrl = (): Promise<string> => {
   if (!rnnoiseBlobUrlPromise) {
@@ -33,7 +44,10 @@ const getRnnoiseBlobUrl = (): Promise<string> => {
 
         return response.blob();
       })
-      .then((blob) => URL.createObjectURL(blob));
+      .then((blob) => {
+        rnnoiseBlobUrl = URL.createObjectURL(blob);
+        return rnnoiseBlobUrl;
+      });
   }
 
   return rnnoiseBlobUrlPromise;
@@ -41,7 +55,7 @@ const getRnnoiseBlobUrl = (): Promise<string> => {
 
 // keyed on context instance to avoid duplicate addModule calls on the same
 // context instance
-const workletLoadPromises = new Map<BaseAudioContext, Promise<void>>();
+const workletLoadPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 
 const ensureWorkletLoaded = async (audioContext: AudioContext) => {
   if (!isRnnoiseWorkletSupported()) {
@@ -133,3 +147,7 @@ const createRnnoiseChain = async (
 };
 
 export { createRnnoiseChain, isRnnoiseWorkletSupported };
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanupRnnoiseBlobUrl);
+}

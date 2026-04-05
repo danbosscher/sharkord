@@ -2,7 +2,7 @@ import { useVoice } from '@/features/server/voice/hooks';
 import { formatBigNumber } from '@/helpers/format-big-number';
 import { Popover, PopoverContent, PopoverTrigger } from '@sharkord/ui';
 import { filesize } from 'filesize';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type StatsPopoverProps = {
@@ -24,7 +24,8 @@ const softwareEncoders = ['libvpx', 'openh264', 'libaom', 'software'];
 
 const StatsPopover = memo(({ children }: StatsPopoverProps) => {
   const { t } = useTranslation('sidebar');
-  const { transportStats } = useVoice();
+  const { transportStats, setTransportStatsEnabled } = useVoice();
+  const [open, setOpen] = useState(false);
 
   const {
     producer,
@@ -69,8 +70,16 @@ const StatsPopover = memo(({ children }: StatsPopoverProps) => {
     return parts && parts.length > 1 ? parts[1] : screenShare?.codec;
   }, [screenShare?.codec]);
 
+  useEffect(() => {
+    setTransportStatsEnabled(open);
+
+    return () => {
+      setTransportStatsEnabled(false);
+    };
+  }, [open, setTransportStatsEnabled]);
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent side="top" align="start" className="p-0">
         <div className="w-72 p-3 text-xs">

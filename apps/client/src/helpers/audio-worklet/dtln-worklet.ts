@@ -16,6 +16,17 @@ const DTLN_CACHE_ENABLED = true;
 // promise is reused (no re-fetch, no re-parse); across page loads the response
 // is served from the Cache API
 let dtlnBlobUrlPromise: Promise<string> | null = null;
+let dtlnBlobUrl: string | null = null;
+
+const cleanupDtlnBlobUrl = () => {
+  if (!dtlnBlobUrl) {
+    return;
+  }
+
+  URL.revokeObjectURL(dtlnBlobUrl);
+  dtlnBlobUrl = null;
+  dtlnBlobUrlPromise = null;
+};
 
 const getDtlnBlobUrl = (): Promise<string> => {
   if (!dtlnBlobUrlPromise) {
@@ -36,7 +47,10 @@ const getDtlnBlobUrl = (): Promise<string> => {
             return response.blob();
           })
         : fetch(DTLN_WORKLET_URL).then((r) => r.blob())
-    ).then((blob) => URL.createObjectURL(blob));
+    ).then((blob) => {
+      dtlnBlobUrl = URL.createObjectURL(blob);
+      return dtlnBlobUrl;
+    });
   }
 
   return dtlnBlobUrlPromise;
@@ -44,7 +58,7 @@ const getDtlnBlobUrl = (): Promise<string> => {
 
 // keyed on context instance to avoid duplicate addModule calls on the same
 // context instance
-const workletLoadPromises = new Map<BaseAudioContext, Promise<void>>();
+const workletLoadPromises = new WeakMap<BaseAudioContext, Promise<void>>();
 
 const ensureWorkletLoaded = async (audioContext: AudioContext) => {
   if (!isDtlnWorkletSupported()) {
@@ -120,3 +134,7 @@ const createDtlnChain = async (
 };
 
 export { createDtlnChain, isDtlnWorkletSupported };
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanupDtlnBlobUrl);
+}

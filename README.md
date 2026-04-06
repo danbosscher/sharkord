@@ -1,48 +1,9 @@
-<div align="center">
-  <h1>Sharkord</h1>
-  <p><strong>A lightweight, self-hosted real-time communication platform</strong></p>
-  
-  [![Version](https://img.shields.io/github/v/release/Sharkord/sharkord)](https://github.com/Sharkord/sharkord/releases)
-  [![License](https://img.shields.io/github/license/Sharkord/sharkord)](LICENSE)
-  [![Downloads](https://img.shields.io/github/downloads/Sharkord/sharkord/total)](https://github.com/Sharkord/sharkord/releases)
-  [![Last Commit](https://img.shields.io/github/last-commit/Sharkord/sharkord)](https://github.com/Sharkord/sharkord/commits)
-  
-  [![Bun](https://img.shields.io/badge/Bun-v1.3.10-green.svg)](https://bun.sh)
-  [![Mediasoup](https://img.shields.io/badge/Mediasoup-v3.19.11-green.svg)](https://mediasoup.org)
-</div>
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0B71U3476)
-
-## What is Sharkord?
-
-> [!NOTE]
-> Sharkord is in alpha stage. Bugs, incomplete features and breaking changes are to be expected.
-
-Sharkord is a self-hosted communication platform that brings the most important Discord-like features to your own infrastructure. Host voice channels, text chat, and file sharing on your terms—no third-party dependencies, complete data ownership, and full control over your group's communication.
-
-## This Fork
-
-This repository is a deployment-focused fork of the original [Sharkord/sharkord](https://github.com/Sharkord/sharkord) project.
-
-If you want the upstream project, issue tracker, or releases, start there:
-
-- Upstream repo: https://github.com/Sharkord/sharkord
-- Upstream issues: https://github.com/Sharkord/sharkord/issues
-- Upstream pull requests: https://github.com/Sharkord/sharkord/pulls
-
+This repository is a fork of the original [Sharkord/sharkord](https://github.com/Sharkord/sharkord) project.
 For what changed in this fork, see [`todo.md`](todo.md). That file tracks the fork-specific backlog, what was implemented locally, what was intentionally deferred, and the main operational decisions made for this small private deployment.
-
-## Docs
-
-For detailed documentation, please visit our [Documentation](https://sharkord.com/docs).
-
-## Wanna Try It Out?
-
-Check out the Live Demo at [demo.sharkord.com](https://demo.sharkord.com). The amount of ports opened for the demo is limited, so voice and video features will only work for a couple of users at a time. If you want to test it with a larger group, we recommend running your own instance.
 
 ## Getting Started
 
-This fork only supports running Sharkord as a headless server in Docker. The browser client is served by that server container. Standalone binaries, separate web-wrapper images, and desktop-hosted server flows are not supported here.
+This fork only supports running Sharkord as a headless server in Docker. The browser client is served by that server container.
 
 #### Docker
 
@@ -61,8 +22,6 @@ docker run \
 
 Once the server is running, open your web browser and navigate to [http://localhost:4991](http://localhost:4991) to access the Sharkord client interface. If you're running the server on a different machine, replace `localhost` with the server's IP address or domain name.
 
-Check out our [Documentation](https://sharkord.com/docs) for more detailed setup instructions, configuration options, and troubleshooting tips.
-
 ## Private Join Shortcut
 
 For this fork's small trusted-group deployment, the browser client also accepts a temporary server-password shortcut in the URL:
@@ -75,20 +34,6 @@ After account login, Sharkord will try that password automatically for the serve
 
 > [!WARNING]
 > This is intentionally low-friction, not high-security. Query parameters leak into browser history, screenshots, copied links, and sometimes proxy or analytics logs. Use this only for a tiny private server where everyone already has the shared password anyway. If this deployment grows beyond that, replace it with a signed invite token flow instead of shipping the raw server password in the URL.
-
-## Plugin-First Recommendations
-
-For a small private group, this fork keeps core focused on reliability, voice, chat, and moderation basics. Extra "Discord toy" features should stay plugin-first unless they become critical to the core product.
-
-- Soundboard: use the Sharkord org soundboard plugin instead of building it into core.
-- Music in voice channels: use [`Sharkord/music-bot`](https://github.com/Sharkord/music-bot).
-- Automod experiments: prefer plugin prototypes first, since the SDK already exposes message-create events and moderation actions.
-- Retention/cleanup experiments: prototype those as plugins first unless you need first-class admin UX in core.
-- Media/voice extensions: keep optional extras such as IPTV, clip boards, and stream integrations plugin-oriented where possible.
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 

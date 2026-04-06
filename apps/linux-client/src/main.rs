@@ -11,9 +11,11 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const APP_ID: &str = "org.zooi.SharkordLinuxClient";
+const TYPING_SIGNAL_MS: u64 = 300;
+const TYPING_EXPIRY_MS: u64 = 800;
 
 #[derive(Clone)]
 struct SessionState {
@@ -40,6 +42,10 @@ struct AppState {
     replying_to: Option<ReplyTarget>,
     pending_uploads: Vec<NativeTempFile>,
     unread_channel_counts: BTreeMap<u64, u64>,
+    typing_users_by_channel: BTreeMap<u64, Vec<u64>>,
+    typing_users_by_thread: BTreeMap<u64, Vec<u64>>,
+    typing_timeout_tokens: BTreeMap<String, u64>,
+    last_typing_signal_by_context: BTreeMap<String, Instant>,
     upload_in_flight: bool,
     reconnect_in_flight: bool,
     restore_in_flight: bool,
@@ -157,6 +163,20 @@ fn unread_channel_counts_from_bootstrap(bootstrap: &NativeBootstrap) -> BTreeMap
         .collect()
 }
 
+fn typing_context_key(channel_id: u64, parent_message_id: Option<u64>, user_id: u64) -> String {
+    match parent_message_id {
+        Some(parent_message_id) => format!("thread:{channel_id}:{parent_message_id}:{user_id}"),
+        None => format!("channel:{channel_id}:{user_id}"),
+    }
+}
+
+fn typing_signal_key(channel_id: u64, parent_message_id: Option<u64>) -> String {
+    match parent_message_id {
+        Some(parent_message_id) => format!("thread:{channel_id}:{parent_message_id}"),
+        None => format!("channel:{channel_id}"),
+    }
+}
+
 fn user_display_name(bootstrap: &NativeBootstrap, user_id: u64) -> String {
     bootstrap
         .users
@@ -164,6 +184,75 @@ fn user_display_name(bootstrap: &NativeBootstrap, user_id: u64) -> String {
         .find(|user| user.id == user_id)
         .map(|user| user.name.clone())
         .unwrap_or_else(|| format!("user {user_id}"))
+}
+
+fn typing_summary_text(bootstrap: &NativeBootstrap, user_ids: &[u64]) -> Option<String> {
+    if user_ids.is_empty() {
+        return None;
+    }
+
+    let names = user_ids
+        .iter()
+        .map(|user_id| user_display_name(bootstrap, *user_id))
+        .collect::<Vec<_>>();
+
+    Some(match names.len() {
+        1 => format!("{} is typing...", names[0]),
+        2 => format!("{} and {} are typing...", names[0], names[1]),
+        _ => format!("{} and {} others are typing...", names[0], names.len() - 1),
+    })
+}
+
+fn update_timeline_typing_label(label: &gtk::Label, app_state: &Rc<RefCell<AppState>>) {
+    let state = app_state.borrow();
+    let Some(session) = state.session.as_ref() else {
+        label.set_text("");
+        label.set_visible(false);
+        return;
+    };
+
+    let user_ids = state
+        .typing_users_by_channel
+        .get(&session.selected_channel_id)
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(summary) = typing_summary_text(&session.bootstrap, &user_ids) {
+        label.set_text(&summary);
+        label.set_visible(true);
+    } else {
+        label.set_text("");
+        label.set_visible(false);
+    }
+}
+
+fn update_thread_typing_label(label: &gtk::Label, app_state: &Rc<RefCell<AppState>>) {
+    let state = app_state.borrow();
+    let Some(session) = state.session.as_ref() else {
+        label.set_text("");
+        label.set_visible(false);
+        return;
+    };
+
+    let Some(parent_message_id) = state.current_thread_parent_message_id else {
+        label.set_text("");
+        label.set_visible(false);
+        return;
+    };
+
+    let user_ids = state
+        .typing_users_by_thread
+        .get(&parent_message_id)
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(summary) = typing_summary_text(&session.bootstrap, &user_ids) {
+        label.set_text(&summary);
+        label.set_visible(true);
+    } else {
+        label.set_text("");
+        label.set_visible(false);
+    }
 }
 
 fn reply_preview_text(bootstrap: &NativeBootstrap, message: &NativeMessage) -> Option<String> {
@@ -2034,6 +2123,29 @@ fn spawn_send_message(
     });
 }
 
+fn spawn_signal_typing(
+    client: NativeClient,
+    token: String,
+    channel_id: u64,
+    parent_message_id: Option<u64>,
+) {
+    std::thread::spawn(move || {
+        let result: Result<_> = (|| {
+            let runtime = tokio::runtime::Runtime::new()?;
+
+            runtime.block_on(async move {
+                client
+                    .signal_typing(&token, channel_id, parent_message_id)
+                    .await
+            })
+        })();
+
+        if let Err(_error) = result {
+            // ignore typing-signal failures
+        }
+    });
+}
+
 fn spawn_upload_temporary_file(
     tx: mpsc::Sender<UiMessage>,
     generation: u64,
@@ -2359,6 +2471,22 @@ fn build_ui(app: &adw::Application) {
         .label("Thread")
         .build();
 
+    let timeline_typing_label = gtk::Label::builder()
+        .xalign(0.0)
+        .wrap(true)
+        .css_classes(["dim-label"])
+        .label("")
+        .visible(false)
+        .build();
+
+    let thread_typing_label = gtk::Label::builder()
+        .xalign(0.0)
+        .wrap(true)
+        .css_classes(["dim-label"])
+        .label("")
+        .visible(false)
+        .build();
+
     let compose_entry = gtk::Entry::builder()
         .hexpand(true)
         .placeholder_text("Type a plain text message")
@@ -2457,6 +2585,13 @@ fn build_ui(app: &adw::Application) {
         .child(&message_list)
         .build();
 
+    let timeline_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(8)
+        .build();
+    timeline_box.append(&messages_scroll);
+    timeline_box.append(&timeline_typing_label);
+
     let search_results_scroll = gtk::ScrolledWindow::builder()
         .vexpand(true)
         .hexpand(true)
@@ -2475,13 +2610,14 @@ fn build_ui(app: &adw::Application) {
         .build();
     thread_box.append(&thread_header_label);
     thread_box.append(&thread_scroll);
+    thread_box.append(&thread_typing_label);
 
     let content_stack = gtk::Stack::builder()
         .vexpand(true)
         .hexpand(true)
         .transition_type(gtk::StackTransitionType::Crossfade)
         .build();
-    content_stack.add_titled(&messages_scroll, Some("timeline"), "Timeline");
+    content_stack.add_titled(&timeline_box, Some("timeline"), "Timeline");
     content_stack.add_titled(&search_results_scroll, Some("search"), "Search");
     content_stack.add_titled(&thread_box, Some("thread"), "Thread");
     content_stack.set_visible_child_name("timeline");
@@ -2921,6 +3057,53 @@ fn build_ui(app: &adw::Application) {
 
     {
         let app_state = Rc::clone(&app_state);
+
+        compose_entry.connect_changed(move |entry| {
+            if entry.text().trim().is_empty() {
+                return;
+            }
+
+            let (client, token, channel_id, parent_message_id, should_signal) = {
+                let mut state = app_state.borrow_mut();
+                let Some((client, token, channel_id)) = state.session.as_ref().map(|session| {
+                    (
+                        session.client.clone(),
+                        session.token.clone(),
+                        session.selected_channel_id,
+                    )
+                }) else {
+                    return;
+                };
+
+                if state.editing_message_id.is_some() {
+                    return;
+                }
+
+                let parent_message_id = state.current_thread_parent_message_id;
+                let signal_key = typing_signal_key(channel_id, parent_message_id);
+                let now = Instant::now();
+                let should_signal = match state.last_typing_signal_by_context.get(&signal_key) {
+                    Some(last_signal) => {
+                        now.duration_since(*last_signal).as_millis() >= u128::from(TYPING_SIGNAL_MS)
+                    }
+                    None => true,
+                };
+
+                if should_signal {
+                    state.last_typing_signal_by_context.insert(signal_key, now);
+                }
+
+                (client, token, channel_id, parent_message_id, should_signal)
+            };
+
+            if should_signal {
+                spawn_signal_typing(client, token, channel_id, parent_message_id);
+            }
+        });
+    }
+
+    {
+        let app_state = Rc::clone(&app_state);
         let compose_entry = compose_entry.clone();
         let send_button = send_button.clone();
         let cancel_edit_button = cancel_edit_button.clone();
@@ -2982,9 +3165,11 @@ fn build_ui(app: &adw::Application) {
     {
         let app_state = Rc::clone(&app_state);
         let content_stack = content_stack.clone();
+        let thread_typing_label = thread_typing_label.clone();
         timeline_button.connect_clicked(move |_| {
             reset_thread_context(&app_state);
             content_stack.set_visible_child_name("timeline");
+            update_thread_typing_label(&thread_typing_label, &app_state);
         });
     }
 
@@ -2992,10 +3177,12 @@ fn build_ui(app: &adw::Application) {
         let app_state = Rc::clone(&app_state);
         let content_stack = content_stack.clone();
         let status_label = status_label.clone();
+        let thread_typing_label = thread_typing_label.clone();
 
         thread_back_button.connect_clicked(move |_| {
             reset_thread_context(&app_state);
             content_stack.set_visible_child_name("timeline");
+            update_thread_typing_label(&thread_typing_label, &app_state);
             status_label.set_text("Back to timeline");
         });
     }
@@ -3059,6 +3246,8 @@ fn build_ui(app: &adw::Application) {
         let username_entry = username_entry.clone();
         let thread_header_label = thread_header_label.clone();
         let thread_list = thread_list.clone();
+        let timeline_typing_label = timeline_typing_label.clone();
+        let thread_typing_label = thread_typing_label.clone();
         let window = window.clone();
         let navigation_ui = (
             status_label.clone(),
@@ -3108,6 +3297,10 @@ fn build_ui(app: &adw::Application) {
                             state.restore_in_flight = false;
                             state.unread_channel_counts =
                                 unread_channel_counts_from_bootstrap(&bootstrap);
+                            state.typing_users_by_channel.clear();
+                            state.typing_users_by_thread.clear();
+                            state.typing_timeout_tokens.clear();
+                            state.last_typing_signal_by_context.clear();
                             state.session = Some(SessionState {
                                 generation,
                                 username,
@@ -3171,6 +3364,8 @@ fn build_ui(app: &adw::Application) {
                             &tx_for_events,
                             &status_label,
                         );
+                        update_timeline_typing_label(&timeline_typing_label, &app_state);
+                        update_thread_typing_label(&thread_typing_label, &app_state);
 
                         if let Some(session) = app_state.borrow().session.as_ref() {
                             persist_session_config(session);
@@ -3243,6 +3438,8 @@ fn build_ui(app: &adw::Application) {
                             channel_id,
                             &app_state.borrow().unread_channel_counts,
                         );
+                        update_timeline_typing_label(&timeline_typing_label, &app_state);
+                        update_thread_typing_label(&thread_typing_label, &app_state);
                         status_label.set_text("Synced");
                     }
                     UiMessage::SearchLoaded {
@@ -3272,6 +3469,7 @@ fn build_ui(app: &adw::Application) {
                             &compose_context_label,
                         );
                         reset_thread_context(&app_state);
+                        update_thread_typing_label(&thread_typing_label, &app_state);
                         populate_search_results(
                             &search_results_list,
                             &query,
@@ -3344,6 +3542,7 @@ fn build_ui(app: &adw::Application) {
                             &cancel_edit_button,
                             &compose_context_label,
                         );
+                        update_thread_typing_label(&thread_typing_label, &app_state);
                         content_stack.set_visible_child_name("thread");
                         status_label.set_text("Thread synced");
                     }
@@ -3394,6 +3593,8 @@ fn build_ui(app: &adw::Application) {
                         };
                         let mut unread_channel_update = None;
                         let mut notification = None;
+                        let mut typing_timeout = None;
+                        let mut typing_labels_dirty = false;
                         let refresh_targets = {
                             let mut state = app_state.borrow_mut();
                             let current_thread_parent_message_id =
@@ -3447,6 +3648,64 @@ fn build_ui(app: &adw::Application) {
                                                 session.bootstrap.clone(),
                                                 session.selected_channel_id,
                                             ));
+                                        }
+                                    }
+
+                                    None
+                                }
+                                "messageTyping" => {
+                                    if let (Some(channel_id), Some(user_id)) = (
+                                        event_channel_id,
+                                        event
+                                            .payload
+                                            .get("userId")
+                                            .and_then(|value| value.as_u64()),
+                                    ) {
+                                        let parent_message_id = event
+                                            .payload
+                                            .get("parentMessageId")
+                                            .and_then(|value| value.as_u64());
+
+                                        if let Some(session) = state.session.as_ref() {
+                                            if user_id != session.bootstrap.own_user_id {
+                                                let typing_users = match parent_message_id {
+                                                    Some(parent_message_id) => state
+                                                        .typing_users_by_thread
+                                                        .entry(parent_message_id)
+                                                        .or_default(),
+                                                    None => state
+                                                        .typing_users_by_channel
+                                                        .entry(channel_id)
+                                                        .or_default(),
+                                                };
+
+                                                if !typing_users.contains(&user_id) {
+                                                    typing_users.push(user_id);
+                                                }
+
+                                                let timeout_key = typing_context_key(
+                                                    channel_id,
+                                                    parent_message_id,
+                                                    user_id,
+                                                );
+                                                let timeout_token = state
+                                                    .typing_timeout_tokens
+                                                    .get(&timeout_key)
+                                                    .copied()
+                                                    .unwrap_or(0)
+                                                    + 1;
+                                                state
+                                                    .typing_timeout_tokens
+                                                    .insert(timeout_key.clone(), timeout_token);
+                                                typing_timeout = Some((
+                                                    timeout_key,
+                                                    timeout_token,
+                                                    channel_id,
+                                                    parent_message_id,
+                                                    user_id,
+                                                ));
+                                                typing_labels_dirty = true;
+                                            }
                                         }
                                     }
 
@@ -3520,6 +3779,63 @@ fn build_ui(app: &adw::Application) {
                                 &bootstrap,
                                 selected_channel_id,
                                 &app_state.borrow().unread_channel_counts,
+                            );
+                        }
+
+                        if typing_labels_dirty {
+                            update_timeline_typing_label(&timeline_typing_label, &app_state);
+                            update_thread_typing_label(&thread_typing_label, &app_state);
+                        }
+
+                        if let Some((
+                            timeout_key,
+                            timeout_token,
+                            channel_id,
+                            parent_message_id,
+                            user_id,
+                        )) = typing_timeout
+                        {
+                            let app_state = Rc::clone(&app_state);
+                            let timeline_typing_label = timeline_typing_label.clone();
+                            let thread_typing_label = thread_typing_label.clone();
+
+                            glib::timeout_add_local(
+                                Duration::from_millis(TYPING_EXPIRY_MS),
+                                move || {
+                                    let mut state = app_state.borrow_mut();
+                                    let should_remove = matches!(
+                                        state.typing_timeout_tokens.get(&timeout_key),
+                                        Some(current_token) if *current_token == timeout_token
+                                    );
+
+                                    if should_remove {
+                                        state.typing_timeout_tokens.remove(&timeout_key);
+
+                                        let typing_users = match parent_message_id {
+                                            Some(parent_message_id) => state
+                                                .typing_users_by_thread
+                                                .get_mut(&parent_message_id),
+                                            None => {
+                                                state.typing_users_by_channel.get_mut(&channel_id)
+                                            }
+                                        };
+
+                                        if let Some(typing_users) = typing_users {
+                                            typing_users.retain(|existing_user_id| {
+                                                *existing_user_id != user_id
+                                            });
+                                        }
+                                    }
+
+                                    drop(state);
+                                    update_timeline_typing_label(
+                                        &timeline_typing_label,
+                                        &app_state,
+                                    );
+                                    update_thread_typing_label(&thread_typing_label, &app_state);
+
+                                    glib::ControlFlow::Break
+                                },
                             );
                         }
 

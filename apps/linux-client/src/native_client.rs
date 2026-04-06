@@ -346,6 +346,32 @@ impl NativeClient {
             .context("failed to decode send response")
     }
 
+    pub async fn signal_typing(
+        &self,
+        token: &str,
+        channel_id: u64,
+        parent_message_id: Option<u64>,
+    ) -> Result<()> {
+        let response = self
+            .http
+            .post(format!("{}/native/messages/signal-typing", self.base_url))
+            .header(AUTHORIZATION, bearer(token))
+            .json(&json!({
+                "channelId": channel_id,
+                "parentMessageId": parent_message_id
+            }))
+            .send()
+            .await
+            .context("failed to call /native/messages/signal-typing")?;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow!("signal typing failed: {body}"));
+        }
+
+        Ok(())
+    }
+
     pub async fn upload_temp_file(&self, token: &str, file_path: &Path) -> Result<NativeTempFile> {
         let file_name = file_path
             .file_name()

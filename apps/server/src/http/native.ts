@@ -53,6 +53,11 @@ const zDeleteMessageBody = z.object({
   messageId: z.number()
 });
 
+const zSignalTypingBody = z.object({
+  channelId: z.number(),
+  parentMessageId: z.number().optional()
+});
+
 const zDeleteTemporaryFileBody = z.object({
   fileId: z.string()
 });
@@ -365,6 +370,24 @@ const nativeDeleteTemporaryFileRouteHandler = async (
   }
 };
 
+const nativeSignalTypingRouteHandler = async (
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+) => {
+  try {
+    const [{ caller }, body] = await Promise.all([
+      createNativeAuthenticatedCaller(req),
+      getJsonBody(req)
+    ]);
+
+    await caller.messages.signalTyping(zSignalTypingBody.parse(body));
+
+    writeJson(res, 200, { success: true });
+  } catch (error) {
+    writeError(res, error);
+  }
+};
+
 const nativeSearchMessagesRouteHandler = async (
   req: http.IncomingMessage,
   res: http.ServerResponse
@@ -474,5 +497,6 @@ export {
   nativeGetThreadMessagesRouteHandler,
   nativeListMessagesRouteHandler,
   nativeSearchMessagesRouteHandler,
+  nativeSignalTypingRouteHandler,
   nativeSendMessageRouteHandler
 };

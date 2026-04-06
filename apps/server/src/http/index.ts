@@ -25,6 +25,7 @@ import {
   nativeGetThreadMessagesRouteHandler,
   nativeListMessagesRouteHandler,
   nativeSearchMessagesRouteHandler,
+  nativeSignalTypingRouteHandler,
   nativeSendMessageRouteHandler
 } from './native';
 import { pluginBundleRouteHandler } from './plugin-bundle';
@@ -76,6 +77,8 @@ const routeHandlers: Partial<
         nativeSearchMessagesRouteHandler(req, res),
       '/native/messages/send': (req, res) =>
         nativeSendMessageRouteHandler(req, res),
+      '/native/messages/signal-typing': (req, res) =>
+        nativeSignalTypingRouteHandler(req, res),
       '/native/messages/edit': (req, res) =>
         nativeEditMessageRouteHandler(req, res),
       '/native/messages/delete': (req, res) =>

@@ -1,8 +1,3 @@
-import type { TArtifact } from '@sharkord/shared';
-import {
-  validateReleaseMetadata,
-  type TReleaseMetadata
-} from 'bun-sfe-autoupdater';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -57,14 +52,6 @@ const downloadMediasoupBinary = async (
       break;
     case 'bun-linux-arm64':
       url += `mediasoup-worker-${version}-linux-arm64-kernel6.tgz`;
-      fileName = 'mediasoup-worker';
-      break;
-    case 'bun-windows-x64':
-      url += `mediasoup-worker-${version}-win32-x64.tgz`;
-      fileName = 'mediasoup-worker.exe';
-      break;
-    case 'bun-darwin-arm64':
-      url += `mediasoup-worker-${version}-darwin-arm64.tgz`;
       fileName = 'mediasoup-worker';
       break;
     default:
@@ -159,49 +146,9 @@ const compile = async ({ out, target }: TTarget) => {
       'process.env.SHARKORD_ENV': '"production"',
       'process.env.SHARKORD_BUILD_VERSION': `"${version}"`,
       'process.env.SHARKORD_BUILD_DATE': `"${new Date().toISOString()}"`,
-      'process.env.SHARKORD_MEDIASOUP_BIN_NAME': `"${mediasoupBinary}"`,
-      'process.env.CURRENT_VERSION': `"${version}"`
+      'process.env.SHARKORD_MEDIASOUP_BIN_NAME': `"${mediasoupBinary}"`
     }
   });
-};
-
-const getFileChecksum = async (filePath: string) => {
-  const fileBuffer = await fs.readFile(filePath);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  return hashHex;
-};
-
-const getVersionInfo = async (
-  targets: TTarget[],
-  outPath: string
-): Promise<TReleaseMetadata> => {
-  const version = await getCurrentVersion();
-
-  const artifacts: TArtifact[] = [];
-
-  for (const target of targets) {
-    const artifactPath = path.join(outPath, target.out);
-
-    artifacts.push({
-      name: path.basename(artifactPath),
-      target: target.target.replace('bun-', ''),
-      size: (await fs.stat(artifactPath)).size,
-      checksum: await getFileChecksum(artifactPath)
-    });
-  }
-
-  const versionInfo = validateReleaseMetadata({
-    version,
-    releaseDate: new Date().toISOString(),
-    artifacts
-  });
-
-  return versionInfo;
 };
 
 const rmIfExists = async (filePath: string) => {
@@ -217,7 +164,6 @@ export {
   compile,
   downloadMediasoupBinary,
   getCurrentVersion,
-  getVersionInfo,
   patchPackageJsons,
   rmIfExists
 };

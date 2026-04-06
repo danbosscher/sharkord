@@ -6,7 +6,6 @@ import { zipDirectory } from '../src/helpers/zip';
 import {
   compile,
   getCurrentVersion,
-  getVersionInfo,
   patchPackageJsons,
   rmIfExists,
   type TTarget
@@ -45,7 +44,6 @@ const buildPath = path.join(serverCwd, 'build');
 const buildTempPath = path.join(buildPath, 'temp');
 const drizzleMigrationsPath = path.join(serverCwd, 'src', 'db', 'migrations');
 const outPath = path.join(buildPath, 'out');
-const releasePath = path.join(outPath, 'release.json');
 const interfaceZipPath = path.join(buildTempPath, 'interface.zip');
 const drizzleZipPath = path.join(buildTempPath, 'drizzle.zip');
 
@@ -82,10 +80,7 @@ console.log('Compiling server with Bun...');
 
 const targets: TTarget[] = [
   { out: 'sharkord-linux-x64', target: 'bun-linux-x64' },
-  { out: 'sharkord-linux-arm64', target: 'bun-linux-arm64' },
-  { out: 'sharkord-windows-x64.exe', target: 'bun-windows-x64' },
-  { out: 'sharkord-macos-arm64', target: 'bun-darwin-arm64' }
-  // mediasoup doesn't support macOS x64
+  { out: 'sharkord-linux-arm64', target: 'bun-linux-arm64' }
 ];
 
 for (const target of targets) {
@@ -97,9 +92,6 @@ for (const target of targets) {
   });
 }
 
-const releaseInfo = await getVersionInfo(targets, outPath);
-
-await fs.writeFile(releasePath, JSON.stringify(releaseInfo, null, 2), 'utf8');
 await fs.rm(buildTempPath, { recursive: true, force: true });
 
 console.log('Sharkord built.');

@@ -129,7 +129,7 @@ describe('deepMerge', () => {
 
   test('works with the config.ini merge use case', () => {
     const defaultConfig = {
-      server: { port: 4991, debug: false, autoupdate: false },
+      server: { port: 4991, debug: false },
       http: { maxFiles: 40, maxFileSize: 100 },
       mediasoup: { webrtcPort: 40000, announcedAddress: '' }
     };
@@ -142,7 +142,7 @@ describe('deepMerge', () => {
     const result = deepMerge(defaultConfig, existingConfig);
 
     expect(result).toEqual({
-      server: { port: 5000, debug: true, autoupdate: false },
+      server: { port: 5000, debug: true },
       http: { maxFiles: 40, maxFileSize: 100 },
       mediasoup: { webrtcPort: 50000, announcedAddress: '' }
     });
@@ -177,7 +177,7 @@ describe('deepMerge', () => {
 
   test('preserves new default keys when existing config lacks them (ini.parse scenario)', () => {
     const defaultConfig = {
-      server: { port: 4991, debug: false, autoupdate: false },
+      server: { port: 4991, debug: false },
       webRtc: { port: 40000, announcedAddress: '', maxBitrate: 30000000 },
       rateLimiters: {
         sendAndEditMessage: { maxRequests: 15, windowMs: 60000 }
@@ -190,7 +190,6 @@ describe('deepMerge', () => {
     existingConfig.server = Object.create(null);
     existingConfig.server.port = '5000';
     existingConfig.server.debug = true;
-    existingConfig.server.autoupdate = false;
     existingConfig.webRtc = Object.create(null);
     existingConfig.webRtc.port = '40000';
     existingConfig.webRtc.announcedAddress = '';

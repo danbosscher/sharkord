@@ -48,16 +48,3 @@ jobs:
             org.opencontainers.image.description=Sharkord Server (dev)
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and publish web image
-        uses: ./.github/actions/docker-build-publish
-        with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          file: Dockerfile.web
-          tags: ghcr.io/${{ steps.image_names.outputs.owner_lc }}/${{ steps.image_names.outputs.repo_name }}-web:dev
-          labels: |
-            org.opencontainers.image.title=Sharkord Web
-            org.opencontainers.image.description=Sharkord Web Client (dev)
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}

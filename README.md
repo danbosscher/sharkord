@@ -42,19 +42,9 @@ Check out the Live Demo at [demo.sharkord.com](https://demo.sharkord.com). The a
 
 ## Getting Started
 
-Sharkord is distributed as a standalone binary that bundles both server and client components. Get started by downloading the latest release for your platform from the [Releases](https://github.com/Sharkord/sharkord/releases) page. We ship binaries for Windows, macOS, and Linux.
-
-#### Linux x64
-
-```bash
-curl -L https://github.com/sharkord/sharkord/releases/latest/download/sharkord-linux-x64 -o sharkord
-chmod +x sharkord
-./sharkord
-```
+This fork only supports running Sharkord as a headless server in Docker. The browser client is served by that server container. Standalone binaries, separate web-wrapper images, and desktop-hosted server flows are not supported here.
 
 #### Docker
-
-Sharkord can also be run using Docker. Here's how to run it:
 
 ```bash
 docker run \
@@ -65,16 +55,6 @@ docker run \
   --name sharkord \
   ghcr.io/<owner>/sharkord:latest
 ```
-
-#### Web Container
-
-An optional static web image is also published to GHCR:
-
-```bash
-docker pull ghcr.io/<owner>/sharkord-web:latest
-```
-
-This image only serves the built client assets. It expects a reverse proxy setup that keeps the client on the same origin as the Sharkord server for API, WebSocket, file, and plugin routes.
 
 > [!NOTE]
 > Upon first launch, Sharkord will create a secure token and print it to the console. This token allows ANYONE to gain owner access to your server, so make sure to store it securely and do not lose it!

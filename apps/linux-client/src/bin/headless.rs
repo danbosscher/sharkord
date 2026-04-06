@@ -213,8 +213,29 @@ fn print_event(event: NativeEventEnvelope) {
     println!("event {} -> {}", event.event_type, event.payload);
 }
 
+fn format_error_chain(error: &anyhow::Error) -> String {
+    let mut lines = Vec::new();
+
+    for (index, cause) in error.chain().enumerate() {
+        if index == 0 {
+            lines.push(cause.to_string());
+        } else {
+            lines.push(format!("caused by: {cause}"));
+        }
+    }
+
+    lines.join("\n")
+}
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(error) = run().await {
+        eprintln!("{}", format_error_chain(&error));
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
     let config = parse_args()?;
     let client = NativeClient::new(&config.server)?;
 

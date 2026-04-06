@@ -199,13 +199,17 @@ impl NativeClient {
         token: &str,
         server_password: Option<&str>,
     ) -> Result<NativeBootstrap> {
+        let mut body = serde_json::Map::new();
+
+        if let Some(password) = server_password.filter(|password| !password.is_empty()) {
+            body.insert("password".to_string(), Value::String(password.to_string()));
+        }
+
         let response = self
             .http
             .post(format!("{}/native/bootstrap", self.base_url))
             .header(AUTHORIZATION, bearer(token))
-            .json(&json!({
-                "password": server_password
-            }))
+            .json(&Value::Object(body))
             .send()
             .await
             .context("failed to call /native/bootstrap")?;

@@ -1,5 +1,5 @@
 use adw::prelude::*;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use gtk::glib;
 use sharkord_linux_client::config::{SavedSession, load_config, save_config};
 use sharkord_linux_client::native_client::{
@@ -136,6 +136,24 @@ fn strip_html(input: &str) -> String {
         .replace("&amp;", "&")
         .trim()
         .to_string()
+}
+
+fn format_error_chain(error: &Error) -> String {
+    let mut lines = Vec::new();
+
+    for (index, cause) in error.chain().enumerate() {
+        if index == 0 {
+            lines.push(cause.to_string());
+        } else {
+            lines.push(format!("caused by: {cause}"));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn log_error(context: &str, error: &Error) {
+    eprintln!("[{context}] {}", format_error_chain(error));
 }
 
 fn clear_list_box(list_box: &gtk::ListBox) {
@@ -721,7 +739,11 @@ fn populate_channel_list(
         channel_list.append(&row);
 
         if channel.id == selected_channel_id {
-            channel_list.select_row(Some(&row));
+            let channel_list = channel_list.clone();
+            let row = row.clone();
+            glib::idle_add_local_once(move || {
+                channel_list.select_row(Some(&row));
+            });
         }
     }
 }
@@ -731,7 +753,10 @@ fn select_channel_row(channel_list: &gtk::ListBox, bootstrap: &NativeBootstrap, 
 
     if let Some(index) = channels.iter().position(|channel| channel.id == channel_id) {
         if let Some(row) = channel_list.row_at_index(index as i32) {
-            channel_list.select_row(Some(&row));
+            let channel_list = channel_list.clone();
+            glib::idle_add_local_once(move || {
+                channel_list.select_row(Some(&row));
+            });
         }
     }
 }
@@ -1913,9 +1938,10 @@ fn spawn_connect(
                 spawn_event_stream(tx.clone(), generation, client, token);
             }
             Err(error) => {
+                log_error("connect", &error);
                 let _ = tx.send(UiMessage::Error {
                     generation,
-                    message: error.to_string(),
+                    message: format_error_chain(&error),
                 });
             }
         }
@@ -1968,9 +1994,10 @@ fn spawn_restore_session(
                 spawn_event_stream(tx.clone(), generation, client, token);
             }
             Err(error) => {
+                log_error("restore-session", &error);
                 let _ = tx.send(UiMessage::Error {
                     generation,
-                    message: format!("Reconnect failed: {error}"),
+                    message: format!("Reconnect failed:\n{}", format_error_chain(&error)),
                 });
             }
         }
@@ -2001,9 +2028,10 @@ fn spawn_event_stream(
         })();
 
         if let Err(error) = result {
+            log_error("event-stream", &error);
             let _ = tx.send(UiMessage::StreamStopped {
                 generation,
-                message: format!("event stream stopped: {error}"),
+                message: format!("event stream stopped:\n{}", format_error_chain(&error)),
             });
         }
     });
@@ -2808,6 +2836,14 @@ fn build_ui(app: &adw::Application) {
                     return;
                 };
 
+                if state
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| session.selected_channel_id == channel_id)
+                {
+                    return;
+                }
+
                 state.current_thread_parent_message_id = None;
                 if let Some(session) = state.session.as_mut() {
                     session.selected_channel_id = channel_id;
@@ -2824,12 +2860,21 @@ fn build_ui(app: &adw::Application) {
                 &cancel_edit_button,
                 &compose_context_label,
             );
-            if let Some(session) = app_state.borrow().session.as_ref() {
+            let channel_list_state = {
+                let state = app_state.borrow();
+                state.session.as_ref().map(|session| {
+                    (
+                        session.bootstrap.clone(),
+                        state.unread_channel_counts.clone(),
+                    )
+                })
+            };
+            if let Some((bootstrap, unread_channel_counts)) = channel_list_state {
                 populate_channel_list(
                     &channel_list_for_selection,
-                    &session.bootstrap,
+                    &bootstrap,
                     channel_id,
-                    &app_state.borrow().unread_channel_counts,
+                    &unread_channel_counts,
                 );
             }
             content_stack.set_visible_child_name("timeline");
@@ -3352,11 +3397,13 @@ fn build_ui(app: &adw::Application) {
                             &compose_context_label,
                             &thread_ui,
                         );
+                        let unread_channel_counts =
+                            app_state.borrow().unread_channel_counts.clone();
                         populate_channel_list(
                             &channel_list,
                             &bootstrap,
                             initial_channel_id,
-                            &app_state.borrow().unread_channel_counts,
+                            &unread_channel_counts,
                         );
                         render_pending_uploads(
                             &pending_attachments_box,
@@ -3432,11 +3479,13 @@ fn build_ui(app: &adw::Application) {
                             &compose_context_label,
                             &thread_ui,
                         );
+                        let unread_channel_counts =
+                            app_state.borrow().unread_channel_counts.clone();
                         populate_channel_list(
                             &channel_list,
                             &bootstrap,
                             channel_id,
-                            &app_state.borrow().unread_channel_counts,
+                            &unread_channel_counts,
                         );
                         update_timeline_typing_label(&timeline_typing_label, &app_state);
                         update_thread_typing_label(&thread_typing_label, &app_state);
@@ -3774,11 +3823,13 @@ fn build_ui(app: &adw::Application) {
                         };
 
                         if let Some((bootstrap, selected_channel_id)) = unread_channel_update {
+                            let unread_channel_counts =
+                                app_state.borrow().unread_channel_counts.clone();
                             populate_channel_list(
                                 &channel_list,
                                 &bootstrap,
                                 selected_channel_id,
-                                &app_state.borrow().unread_channel_counts,
+                                &unread_channel_counts,
                             );
                         }
 

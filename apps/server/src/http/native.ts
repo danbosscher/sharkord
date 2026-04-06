@@ -16,7 +16,7 @@ import { createContext } from '../utils/wss';
 import { getJsonBody } from './helpers';
 
 const zBootstrapBody = z.object({
-  password: z.string().optional()
+  password: z.string().nullish()
 });
 
 const zListMessagesBody = z.object({

@@ -398,7 +398,9 @@ const nativeSearchMessagesRouteHandler = async (
       getJsonBody(req)
     ]);
 
-    const result = await caller.messages.search(zSearchMessagesBody.parse(body));
+    const result = await caller.messages.search(
+      zSearchMessagesBody.parse(body)
+    );
 
     writeJson(res, 200, result);
   } catch (error) {
@@ -489,14 +491,14 @@ const nativeEventsRouteHandler = async (
 
 export {
   nativeBootstrapRouteHandler,
-  nativeDeleteTemporaryFileRouteHandler,
   nativeDeleteMessageRouteHandler,
+  nativeDeleteTemporaryFileRouteHandler,
   nativeEditMessageRouteHandler,
   nativeEventsRouteHandler,
   nativeGetMessageRouteHandler,
   nativeGetThreadMessagesRouteHandler,
   nativeListMessagesRouteHandler,
   nativeSearchMessagesRouteHandler,
-  nativeSignalTypingRouteHandler,
-  nativeSendMessageRouteHandler
+  nativeSendMessageRouteHandler,
+  nativeSignalTypingRouteHandler
 };

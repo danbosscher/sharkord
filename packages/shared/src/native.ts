@@ -1,4 +1,5 @@
 import { ServerEvents } from './events';
+import type { TCommandsMapByPlugin, TPluginMetadata } from './plugins';
 import type {
   TCategory,
   TChannel,
@@ -13,7 +14,6 @@ import type {
   TPublicServerSettings,
   TReadStateMap
 } from './types';
-import type { TCommandsMapByPlugin, TPluginMetadata } from './plugins';
 import type { TExternalStreamsMap, TVoiceMap } from './voice';
 
 export type TNativeBootstrap = {

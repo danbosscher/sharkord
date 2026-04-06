@@ -17,16 +17,16 @@ import { loginRouteHandler } from './login';
 import { manifestRouteHandler } from './manifest';
 import {
   nativeBootstrapRouteHandler,
-  nativeDeleteTemporaryFileRouteHandler,
   nativeDeleteMessageRouteHandler,
+  nativeDeleteTemporaryFileRouteHandler,
   nativeEditMessageRouteHandler,
   nativeEventsRouteHandler,
   nativeGetMessageRouteHandler,
   nativeGetThreadMessagesRouteHandler,
   nativeListMessagesRouteHandler,
   nativeSearchMessagesRouteHandler,
-  nativeSignalTypingRouteHandler,
-  nativeSendMessageRouteHandler
+  nativeSendMessageRouteHandler,
+  nativeSignalTypingRouteHandler
 } from './native';
 import { pluginBundleRouteHandler } from './plugin-bundle';
 import { pluginsComponentsRouteHandler } from './plugins-components';
@@ -68,7 +68,8 @@ const routeHandlers: Partial<
       '/upload': (req, res) => uploadFileRouteHandler(req, res),
       '/login': (req, res) => loginRouteHandler(req, res),
       '/native/bootstrap': (req, res) => nativeBootstrapRouteHandler(req, res),
-      '/native/messages/get': (req, res) => nativeGetMessageRouteHandler(req, res),
+      '/native/messages/get': (req, res) =>
+        nativeGetMessageRouteHandler(req, res),
       '/native/messages/thread': (req, res) =>
         nativeGetThreadMessagesRouteHandler(req, res),
       '/native/messages/list': (req, res) =>

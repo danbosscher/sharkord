@@ -6,7 +6,6 @@ import { getSettings } from '../../db/queries/server';
 import { users } from '../../db/schema';
 import { shouldAskServerPassword } from '../../helpers/should-ask-server-password';
 import { logger } from '../../logger';
-import { pluginManager } from '../../plugins';
 import { eventBus } from '../../plugins/event-bus';
 import { enqueueActivityLog } from '../../queues/activity-log';
 import { enqueueLogin } from '../../queues/logins';
@@ -64,7 +63,9 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
       getStatusById: ctx.getStatusById
     });
 
-    const foundPublicUser = bootstrap.users.find((user) => user.id === ctx.user.id);
+    const foundPublicUser = bootstrap.users.find(
+      (user) => user.id === ctx.user.id
+    );
 
     invariant(foundPublicUser, {
       code: 'NOT_FOUND',
